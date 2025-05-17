@@ -2,9 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './database.types';
 
-// These will be replaced with actual values once Supabase is connected through Lovable's integration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+// Use fallback empty strings for development when env variables are not set
+// In production, these values should be properly configured
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 

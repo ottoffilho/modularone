@@ -17,10 +17,11 @@ interface AuthModalProps {
 }
 
 const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
-  const { login } = useAuth();
+  const { user, loading } = useAuth();
 
   const handleLogin = () => {
-    login();
+    // Redirect to login page
+    window.location.href = '/login';
     onClose();
   };
 
@@ -36,7 +37,7 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
         
         <div className="grid gap-4 py-4">
           <p className="text-sm text-muted-foreground">
-            This is a mock login. In the future, this will be connected to a real authentication system.
+            You need to log in to access this feature. Please log in to continue.
           </p>
         </div>
         
