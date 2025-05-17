@@ -1,0 +1,257 @@
+---
+description: Diretrizes Técnicas para Interação com IA no ModularOne
+globs: "**/*"
+alwaysApply: true
+version: 2.1.1
+priority: 1000
+contact: "equipe-tecnica@modularone.com.br"
+---
+
+# 🔍 Análise de Código (AST Level)
+
+## Fluxo de Compreensão
+```mermaid
+graph TD
+  A[Análise Léxica] --> B[Parse AST]
+  B --> C[Mapa de Dependências]
+  C --> D[Padrões Arquiteturais]
+  D --> E[Relatório de Complexidade]
+```
+
+## Modelo de Diagnóstico
+```ts
+interface CodeAnalysis {
+  id: string;
+  severity: 1 | 2 | 3;
+  category: 'security' | 'performance' | 'maintainability';
+  location: {
+    file: string;
+    line: number;
+    column: number;
+  };
+  suggestion: string;
+  references: string[];
+  metrics: {
+    cyclomatic: number;
+    cognitive: number;
+    halstead: number;
+  };
+}
+```
+
+## Checklist de Análise
+- [ ] Mapear dependências cruzadas
+- [ ] Identificar code smells
+- [ ] Calcular métricas de complexidade
+- [ ] Verificar violações de padrões
+- [ ] Validar consistência arquitetural
+```
+
+# 🏗 Arquitetura & Padrões de Código
+
+## Princípios SOLID Adaptados
+```mermaid
+graph LR
+  S(SRP) -->|Uma responsabilidade| O(OCP)
+  O -->|Extensão aberta| L(LSP)
+  L -->|Substituição| I(ISP)
+  I -->|Segregação| D(DIP)
+  D -->|Inversão| S
+```
+
+## Implementação de Componentes
+```ts
+interface ComponentRules {
+  naming: {
+    prefix: string;
+    pattern: 'PascalCase' | 'kebab-case';
+    suffix?: 'Container' | 'Widget';
+  };
+  props: {
+    validation: 'Zod' | 'Yup';
+    typing: 'Strict' | 'Optional';
+    defaults: 'Required' | 'Partial';
+  };
+  styling: 'Tailwind' | 'CSSModules';
+  testing: {
+    unit: 'Jest' | 'Vitest';
+    coverage: number;
+  };
+}
+```
+
+## Checklist de Qualidade
+- [ ] Atender aos princípios SOLID
+- [ ] Seguir padrões de projeto adequados
+- [ ] Manter coesão alta (≥80%)
+- [ ] Limitar acoplamento (≤3 dependências)
+- [ ] Implementar testes unitários
+- [ ] Documentar via TSdoc
+```
+
+# 🔒 Segurança & Boas Práticas
+
+## Princípios Fundamentais
+```mermaid
+graph TD
+  A[Segurança] --> B[Defesa em Profundidade]
+  A --> C[Princípio do Menor Privilégio]
+  A --> D[Validação Rigorosa]
+  B --> E[Multi-factor Authentication]
+  C --> F[Controle de Acesso Granular]
+  D --> G[Sanitização de Dados]
+```
+
+## Checklist Crítico
+- [ ] Validação de inputs com Zod
+- [ ] Sanitização de dados antes do processamento
+- [ ] Controle de acesso baseado em roles (RBAC)
+- [ ] Logging não sensível com máscara de dados
+- [ ] Tratamento de erros sem expor detalhes internos
+- [ ] Criptografia de dados sensíveis em repouso/trânsito
+- [ ] Auditoria periódica de permissões
+- [ ] Rotação de chaves de API
+
+## Padrões de Segurança
+```ts
+// Modelo de Autenticação Segura
+interface AuthConfig {
+  jwtSecret: string;
+  sessionTimeout: number;
+  passwordPolicy: {
+    minLength: number;
+    complexity: boolean;
+    historyCheck: number;
+  };
+  mfa: {
+    enabled: boolean;
+    methods: ['sms', 'email', 'authenticator'];
+  };
+}
+
+class AuthService {
+  private async handleAuthFlow(
+    credentials: SecureAuthPayload,
+    context: AuthContext
+  ) {
+    // Implementação com validação em múltiplos níveis
+  }
+}
+```
+
+## Fluxo de Autenticação
+```mermaid
+sequenceDiagram
+  participante User
+  participante Frontend
+  participante Backend
+  User->>Frontend: Insere credenciais
+  Frontend->>Backend: Challenge criptografado
+  Backend->>Frontend: Token JWT assinado
+  Frontend->>User: Redirecionamento seguro
+```
+
+# 🛠 Implementação & Testes
+
+## Fluxo de Validação
+```mermaid
+graph TD
+  A[Análise de Requisitos] --> B[Proposta Técnica]
+  B --> C[Revisão com Dev]
+  C --> D[Implementação Parcial]
+  D --> E[Testes Automatizados]
+  E --> F{Passou?}
+  F -->|Sim| G[Implementação Completa]
+  F -->|Não| H[Refatoração]
+```
+
+## Implementação de Testes
+```ts
+// Exemplo de Teste Unitário
+describe('AuthService', () => {
+  it('deve bloquear login após 3 tentativas', async () => {
+    const auth = new AuthService();
+    
+    // Tentativas falhas
+    await auth.login({usuario: 'teste', senha: 'errada1'});
+    await auth.login({usuario: 'teste', senha: 'errada2'});
+    await auth.login({usuario: 'teste', senha: 'errada3'});
+
+    // Quarta tentativa
+    await expect(auth.login({usuario: 'teste', senha: 'correta'}))
+      .rejects.toThrow('Conta bloqueada temporariamente');
+  });
+});
+```
+
+## Checklist de Qualidade de Testes
+- [ ] Cobrir casos de sucesso e falha
+- [ ] Testar valores limite
+- [ ] Mockar dependências externas
+- [ ] Garantir velocidade de execução
+- [ ] Atualizar snapshots regularmente
+
+## Padrões de Teste
+| Tipo        | Boas Práticas                      | Anti-padrões                |
+|-------------|------------------------------------|----------------------------|
+| Unitário    | Testes isolados e rápidos          | Mockar excessivamente       |
+| Integração  | Testar fluxos completos            | Depender de dados externos |
+| E2E         | Simular interações reais           | Testes frágeis/lentos       |
+
+# 📄 Formato de Respostas
+
+## Template Estruturado
+```markdown
+## Análise do Problema
+- Contexto atual
+- Impacto estimado
+- Componentes afetados
+
+## Proposta de Solução
+```ts
+// Exemplo de implementação
+function soluçãoOtimizada(...args) {
+  // ...
+}
+```
+
+## Considerações
+- Trade-offs técnicos
+- Alternativas descartadas
+- Riscos potenciais
+```
+
+# 🔄 Adaptação ao Projeto
+
+## Diretrizes de Evolução
+1. **Versionamento Semântico**  
+   `MAJOR.MINOR.PATCH` com changelog detalhado
+
+2. **Gestão de Dependências**  
+   ```bash
+   # Atualização segura
+   npm update --audit --fund
+   ```
+
+3. **Ambientes Multi-stage**  
+   ```env
+   # .env.production
+   API_URL=https://api.prod.modularone.com
+   DEBUG_MODE=false
+   ```
+
+# ✅ Mecanismos de Validação
+
+## Checklist de Qualidade
+1. [ ] Documentação inline
+2. [ ] Tipagem estática
+3. [ ] Testes unitários
+4. [ ] Compatibilidade cross-browser
+5. [ ] Acessibilidade (WCAG 2.1)
+
+## Indicadores de Performance
+| Métrica          | Aceitável  | Ideal     |
+|------------------|------------|-----------|
+| TTI (s)         | ≤3        | ≤1        |
+| CLS              | ≤0.1      | ≤0.05     |
+| Memória (MB)     | ≤500      | ≤200      |

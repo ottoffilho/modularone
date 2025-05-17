@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -88,11 +87,10 @@ export default function ResetPassword() {
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
         <div className="flex flex-col items-center mb-8">
-          <Link to="/" className="flex items-center gap-2 mb-2">
-            <Logo className="h-8 w-8" />
-            <span className="font-bold text-xl">ModularOne</span>
+          <Link to="/" className="mb-4">
+            <Logo className="h-12 w-12" />
           </Link>
-          <h1 className="text-2xl font-bold mt-4">Redefinir Senha</h1>
+          <h1 className="text-2xl font-bold">Redefinir Senha</h1>
           <p className="text-muted-foreground mt-2 text-center">
             Digite sua nova senha abaixo
           </p>
