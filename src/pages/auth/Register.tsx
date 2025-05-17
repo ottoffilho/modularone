@@ -1,4 +1,5 @@
-import { useState } from 'react';
+
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { GoogleIcon } from '@/components/ui/icons';
+import { verifyDatabaseSchema } from '@/lib/schema-setup';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const registerSchema = z.object({
   fullName: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
@@ -26,11 +30,22 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState(false);
   const navigate = useNavigate();
   const {
     signUp,
     signInWithGoogle
   } = useAuth();
+
+  // Check if the database schema is properly set up
+  useEffect(() => {
+    const checkSchema = async () => {
+      const isValid = await verifyDatabaseSchema();
+      setSchemaError(!isValid);
+    };
+    
+    checkSchema();
+  }, []);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -60,6 +75,8 @@ export default function Register() {
             message: 'Cadastro realizado com sucesso. Verifique seu e-mail para confirmar sua conta.'
           }
         });
+      } else {
+        console.error('Erro de cadastro:', error.message);
       }
     } catch (error) {
       console.error('Erro ao cadastrar:', error);
@@ -82,6 +99,16 @@ export default function Register() {
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
+        {schemaError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro de configuração</AlertTitle>
+            <AlertDescription>
+              O banco de dados não está configurado corretamente. Conecte seu projeto ao Supabase e configure as tabelas necessárias.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="flex flex-col items-center mb-8">
           <Link to="/" className="flex items-center gap-2 mb-2">
             <Logo className="h-8 w-8" />
@@ -149,7 +176,7 @@ export default function Register() {
                   </FormControl>
                   <FormMessage />
                 </FormItem>} />
-            <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+            <Button type="submit" className="w-full mt-6" disabled={isLoading || schemaError}>
               {isLoading ? 'Cadastrando...' : 'Cadastrar'}
             </Button>
           </form>
@@ -164,7 +191,7 @@ export default function Register() {
           </div>
         </div>
 
-        <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isLoading}>
+        <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isLoading || schemaError}>
           <GoogleIcon className="mr-2 h-4 w-4" />
           Google
         </Button>
