@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -128,11 +127,10 @@ export default function Login() {
         )}
         
         <div className="flex flex-col items-center mb-8">
-          <Link to="/" className="flex items-center gap-2 mb-2">
-            <Logo className="h-8 w-8" />
-            <span className="font-bold text-xl">ModularOne</span>
+          <Link to="/" className="mb-4">
+            <Logo className="h-12 w-12" />
           </Link>
-          <h1 className="text-2xl font-bold mt-4">Login</h1>
+          <h1 className="text-2xl font-bold">Login</h1>
           <p className="text-muted-foreground mt-2 text-center">
             Entre com sua conta para acessar a plataforma
           </p>

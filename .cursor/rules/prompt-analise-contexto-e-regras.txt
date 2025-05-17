@@ -1,0 +1,61 @@
+=== INÍCIO DO PROTOCOLO DE CONTEXTO ===
+
+[COMENTÁRIO PARA IA]
+Este arquivo define os requisitos para integração com o contexto do projeto "Gestor Brecho".
+Leia atentamente e siga rigorosamente todas as instruções abaixo.
+[/COMENTÁRIO]
+
+🔍 **OBJETIVO PRINCIPAL**
+|------------------------------------------|
+| Internalizar o contexto e diretrizes do |
+| projeto para garantir conformidade em   |
+| todas as interações futuras             |
+|------------------------------------------|
+
+📂 **ARQUIVOS DE CONTEXTO** (Fontes Primárias)
+1. `contexto_projeto.mdc`
+   - Finalidade: Definir O QUÊ e ONDE
+   - Conteúdo Chave:
+     * Visão geral do projeto
+     * Arquitetura técnica
+     * Módulos principais
+     * Funcionalidades implementadas
+     * Roadmap de próximos passos
+
+2. `regras-projeto.mdc` 
+   - Finalidade: Definir COMO (diretrizes gerais)
+   - Conteúdo Chave:
+     * Padrões de código limpo
+     * Organização de ambientes (dev/test/prod)
+     * Fluxos de trabalho
+     * Políticas de versionamento
+     * Protocolos de uso de IA
+
+3. `rules.mdc`
+   - Finalidade: Definir COMO (diretrizes específicas)
+   - Conteúdo Chave:
+     * Padrões de interação
+     * Estilo de código obrigatório
+     * Protocolos de segurança
+     * Estratégias de escalabilidade
+     * Formato de respostas esperado
+
+🚨 **INSTRUÇÃO OPERACIONAL**  
+|--------------------------------------------------------|
+| TODAS as interações relacionadas ao projeto DEVEM:     |
+| 1. Ser baseadas nestes documentos                      |
+| 2. Seguir rigorosamente as diretrizes estabelecidas    |
+| 3. Manter consistência com a arquitetura existente     |
+|--------------------------------------------------------|
+
+✅ **CONFIRMAÇÃO DE COMPREENSÃO**  
+[ ] Confirmo análise completa dos 3 arquivos  
+[ ] Comprometo-me a seguir todas as diretrizes  
+[ ] Entendo que estas regras são prioritárias  
+
+[COMENTÁRIO PARA IA]
+Este protocolo deve ser revisado antes de qualquer ação relacionada ao projeto.
+Qualquer desvio requer aprovação explícita do usuário.
+[/COMENTÁRIO]
+
+=== FIM DO PROTOCOLO DE CONTEXTO ===

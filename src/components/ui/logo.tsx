@@ -1,20 +1,20 @@
-
 import { cn } from "@/lib/utils";
-import { Zap } from "lucide-react";
+// import { Zap } from "lucide-react"; // Zap não é mais usado
+import AppLogoSrc from "@/assets/logo/modularlogo41.png"; // Importar a imagem do logo
 
 interface LogoProps {
   className?: string;
-  showText?: boolean;
+  // showText?: boolean; // showText não é mais relevante se o logo é apenas gráfico
 }
 
 export function Logo({
-  className,
-  showText = true
+  className
 }: LogoProps) {
   return (
-    <div className={cn("flex items-center", className)}>
-      <Zap className="h-6 w-6 text-primary" />
-      {showText && <span className="ml-2 font-bold text-xl">ModularOne</span>}
-    </div>
+    <img 
+      src={AppLogoSrc} 
+      alt="ModularOne Logo"
+      className={cn("object-contain", className)} // object-contain para manter proporções
+    />
   );
 }
