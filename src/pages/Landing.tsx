@@ -203,7 +203,7 @@ export default function Landing() {
             <div className="md:col-span-2">
               <div className="flex items-center gap-2 mb-4">
                 <Logo className="h-8 w-8" />
-                <span className="font-bold text-xl">ModularOne</span>
+                
               </div>
               <p className="text-muted-foreground mb-4 max-w-sm">
                 Transformando a maneira como você gerencia e otimiza seu consumo de energia com tecnologia de ponta e inteligência artificial.
