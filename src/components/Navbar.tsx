@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Brain, LogIn, Search, Upload, User, Settings, LogOut, Moon, Sun, Table, Info, HelpCircle, Code } from 'lucide-react';
@@ -120,7 +121,7 @@ const SubMenuItem = ({ to, icon, label, active, onClick }: NavItemProps) => {
 export const Navbar = () => {
   const [active, setActive] = useState('what');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const { isAuthenticated, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
   const handleOpenAuthModal = () => {
@@ -149,7 +150,7 @@ export const Navbar = () => {
     { to: '/settings', icon: <Settings size={20} />, label: 'Settings', id: 'settings' },
   ];
 
-  const navItems = isAuthenticated ? authNavItems : [];
+  const navItems = user ? authNavItems : [];
 
   return (
     <>
@@ -205,13 +206,13 @@ export const Navbar = () => {
               </TooltipContent>
             </Tooltip>
             
-            {isAuthenticated ? (
+            {user ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
                     className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary hover:text-primary-foreground"
-                    onClick={logout}
+                    onClick={signOut}
                   >
                     <LogOut size={20} />
                     {active === 'logout' && <span className="font-medium">Logout</span>}

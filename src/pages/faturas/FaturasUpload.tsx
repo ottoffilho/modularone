@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { ArrowLeft, Upload, File, Check, X } from 'lucide-react';
+import { ArrowLeft, Upload, File, Check, X, AlertCircle } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -157,15 +156,15 @@ export default function FaturasUpload() {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `${user.id}/faturas/${fileName}`;
       
+      // Track upload progress with a separate listener
+      let uploadProgress = 0;
+      
       // Upload file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('faturas')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
-          onUploadProgress: (progress) => {
-            setUploadProgress(Math.round((progress.loaded / progress.total) * 100));
-          },
         });
         
       if (uploadError) throw uploadError;
