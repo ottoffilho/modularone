@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,6 +17,9 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { GoogleIcon } from '@/components/ui/icons';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -30,8 +33,20 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signIn, signInWithGoogle } = useAuth();
+  const { toast } = useToast();
 
   const from = location.state?.from?.pathname || '/dashboard';
+  const message = location.state?.message;
+  
+  // Display toast message if it exists in the location state
+  useEffect(() => {
+    if (message) {
+      toast({
+        title: "Sucesso",
+        description: message,
+      });
+    }
+  }, [message, toast]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -47,6 +62,15 @@ export default function Login() {
       const { error } = await signIn(data.email, data.password);
       if (!error) {
         navigate(from, { replace: true });
+      } else {
+        // Handle specific error cases
+        if (error.message.includes('not confirmed')) {
+          toast({
+            title: "Email não confirmado",
+            description: "Por favor, verifique seu email para confirmar sua conta antes de fazer login.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error('Erro ao fazer login:', error);
@@ -69,6 +93,13 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
+        {message && (
+          <Alert className="mb-6 bg-green-50 border-green-200">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <AlertDescription className="text-green-700">{message}</AlertDescription>
+          </Alert>
+        )}
+        
         <div className="flex flex-col items-center mb-8">
           <Link to="/" className="flex items-center gap-2 mb-2">
             <Logo className="h-8 w-8" />

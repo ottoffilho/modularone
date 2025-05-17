@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, getCurrentUser } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
@@ -55,16 +54,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Subscribe to auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        // Handle specific auth events
+        if (event === 'SIGNED_IN') {
+          toast({
+            title: "Login bem-sucedido!",
+            description: "Você está agora conectado ao ModularOne.",
+          });
+        } else if (event === 'SIGNED_OUT') {
+          toast({
+            title: "Desconectado",
+            description: "Você saiu da sua conta com sucesso.",
+          });
+        } else if (event === 'USER_UPDATED') {
+          toast({
+            title: "Perfil atualizado",
+            description: "Suas informações foram atualizadas com sucesso.",
+          });
+        } else if (event === 'PASSWORD_RECOVERY') {
+          toast({
+            title: "Redefinição de senha",
+            description: "Siga as instruções para redefinir sua senha.",
+          });
+        }
       }
     );
 
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   // Auth methods
   const handleSignIn = async (email: string, password: string) => {
