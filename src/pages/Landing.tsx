@@ -1,18 +1,15 @@
-
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, Zap, Brain, LineChart, Shield, CheckCircle, Bot } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
-
 export default function Landing() {
-  return (
-    <div className="flex flex-col min-h-screen">
+  return <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="fixed top-0 w-full bg-background/80 backdrop-blur-md z-50 border-b">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-2">
             <Logo className="h-8 w-8" />
-            <span className="font-bold text-xl">ModularOne</span>
+            
           </div>
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">
@@ -65,11 +62,7 @@ export default function Landing() {
             </div>
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-primary/30 to-purple-500/30 rounded-3xl blur-3xl opacity-20"></div>
-              <img 
-                src="/placeholder.svg" 
-                alt="Dashboard ModularOne" 
-                className="w-full h-auto rounded-xl shadow-2xl relative z-10" 
-              />
+              <img src="/placeholder.svg" alt="Dashboard ModularOne" className="w-full h-auto rounded-xl shadow-2xl relative z-10" />
             </div>
           </div>
         </div>
@@ -241,6 +234,5 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 }
