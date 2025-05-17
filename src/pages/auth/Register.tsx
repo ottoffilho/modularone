@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { GoogleIcon } from '@/components/ui/icons';
+
 const registerSchema = z.object({
   fullName: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
   username: z.string().min(3, 'Usuário deve ter pelo menos 3 caracteres'),
@@ -20,7 +21,9 @@ const registerSchema = z.object({
   message: 'As senhas não coincidem',
   path: ['confirmPassword']
 });
+
 type RegisterFormValues = z.infer<typeof registerSchema>;
+
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -28,6 +31,7 @@ export default function Register() {
     signUp,
     signInWithGoogle
   } = useAuth();
+
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -39,6 +43,7 @@ export default function Register() {
       confirmPassword: ''
     }
   });
+
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     try {
@@ -62,6 +67,7 @@ export default function Register() {
       setIsLoading(false);
     }
   };
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
@@ -72,12 +78,14 @@ export default function Register() {
       setIsLoading(false);
     }
   };
-  return <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
+
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
         <div className="flex flex-col items-center mb-8">
           <Link to="/" className="flex items-center gap-2 mb-2">
             <Logo className="h-8 w-8" />
-            
+            <span className="font-bold text-xl">ModularOne</span>
           </Link>
           <h1 className="text-2xl font-bold mt-4">Criar Conta</h1>
           <p className="text-muted-foreground mt-2 text-center">
@@ -168,5 +176,6 @@ export default function Register() {
           </Link>
         </p>
       </div>
-    </div>;
+    </div>
+  );
 }
