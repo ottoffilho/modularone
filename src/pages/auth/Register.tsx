@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -7,36 +6,28 @@ import { z } from 'zod';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/ui/logo';
 import { Button } from '@/components/ui/button';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { GoogleIcon } from '@/components/ui/icons';
-
 const registerSchema = z.object({
   fullName: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
   username: z.string().min(3, 'Usuário deve ter pelo menos 3 caracteres'),
   email: z.string().email('E-mail inválido'),
   phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos').optional(),
   password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
-  confirmPassword: z.string().min(6, 'A confirmação de senha deve ter pelo menos 6 caracteres'),
-}).refine((data) => data.password === data.confirmPassword, {
+  confirmPassword: z.string().min(6, 'A confirmação de senha deve ter pelo menos 6 caracteres')
+}).refine(data => data.password === data.confirmPassword, {
   message: 'As senhas não coincidem',
-  path: ['confirmPassword'],
+  path: ['confirmPassword']
 });
-
 type RegisterFormValues = z.infer<typeof registerSchema>;
-
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { signUp, signInWithGoogle } = useAuth();
-
+  const {
+    signUp,
+    signInWithGoogle
+  } = useAuth();
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -45,23 +36,24 @@ export default function Register() {
       email: '',
       phone: '',
       password: '',
-      confirmPassword: '',
-    },
+      confirmPassword: ''
+    }
   });
-
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     try {
-      const { error } = await signUp(data.email, data.password, {
+      const {
+        error
+      } = await signUp(data.email, data.password, {
         full_name: data.fullName,
         username: data.username,
-        phone: data.phone,
+        phone: data.phone
       });
       if (!error) {
-        navigate('/login', { 
-          state: { 
-            message: 'Cadastro realizado com sucesso. Verifique seu e-mail para confirmar sua conta.' 
-          } 
+        navigate('/login', {
+          state: {
+            message: 'Cadastro realizado com sucesso. Verifique seu e-mail para confirmar sua conta.'
+          }
         });
       }
     } catch (error) {
@@ -70,7 +62,6 @@ export default function Register() {
       setIsLoading(false);
     }
   };
-
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
@@ -81,14 +72,12 @@ export default function Register() {
       setIsLoading(false);
     }
   };
-
-  return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
+  return <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
       <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
         <div className="flex flex-col items-center mb-8">
           <Link to="/" className="flex items-center gap-2 mb-2">
             <Logo className="h-8 w-8" />
-            <span className="font-bold text-xl">ModularOne</span>
+            
           </Link>
           <h1 className="text-2xl font-bold mt-4">Criar Conta</h1>
           <p className="text-muted-foreground mt-2 text-center">
@@ -98,84 +87,60 @@ export default function Register() {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="fullName"
-              render={({ field }) => (
-                <FormItem>
+            <FormField control={form.control} name="fullName" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>Nome Completo</FormLabel>
                   <FormControl>
                     <Input placeholder="Seu nome completo" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
+                </FormItem>} />
+            <FormField control={form.control} name="username" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>Nome de Usuário</FormLabel>
                   <FormControl>
                     <Input placeholder="seu_usuario" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
+                </FormItem>} />
+            <FormField control={form.control} name="email" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>E-mail</FormLabel>
                   <FormControl>
                     <Input placeholder="seu@email.com" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
+                </FormItem>} />
+            <FormField control={form.control} name="phone" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>Telefone (opcional)</FormLabel>
                   <FormControl>
                     <Input placeholder="(00) 00000-0000" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
+                </FormItem>} />
+            <FormField control={form.control} name="password" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>Senha</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
+                </FormItem>} />
+            <FormField control={form.control} name="confirmPassword" render={({
+            field
+          }) => <FormItem>
                   <FormLabel>Confirmar Senha</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
+                </FormItem>} />
             <Button type="submit" className="w-full mt-6" disabled={isLoading}>
               {isLoading ? 'Cadastrando...' : 'Cadastrar'}
             </Button>
@@ -191,13 +156,7 @@ export default function Register() {
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-        >
+        <Button type="button" variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isLoading}>
           <GoogleIcon className="mr-2 h-4 w-4" />
           Google
         </Button>
@@ -209,6 +168,5 @@ export default function Register() {
           </Link>
         </p>
       </div>
-    </div>
-  );
+    </div>;
 }
