@@ -1,5 +1,5 @@
 
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Verifies if the required database schema exists in Supabase
