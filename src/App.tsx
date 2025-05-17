@@ -7,16 +7,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
-import Index from "./pages/Index";
-import WhyPage from "./pages/WhyPage";
-import HowPage from "./pages/HowPage";
-import NotFound from "./pages/NotFound";
-import Profile from "./pages/Profile";
-import Import from "./pages/Import";
-import SearchPage from "./pages/SearchPage";
-import Settings from "./pages/Settings";
-import ManagePage from "./pages/ManagePage";
-import Navbar from "./components/Navbar";
+import routes from "./routes";
 
 const queryClient = new QueryClient();
 
@@ -38,78 +29,39 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={
-          <PageTransition>
-            <Index />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/why" 
-        element={
-          <PageTransition>
-            <WhyPage />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/how" 
-        element={
-          <PageTransition>
-            <HowPage />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/manage" 
-        element={
-          <PageTransition>
-            <ManagePage />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/profile" 
-        element={
-          <PageTransition>
-            <Profile />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/import" 
-        element={
-          <PageTransition>
-            <Import />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/search" 
-        element={
-          <PageTransition>
-            <SearchPage />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="/settings" 
-        element={
-          <PageTransition>
-            <Settings />
-          </PageTransition>
-        } 
-      />
-      <Route 
-        path="*" 
-        element={
-          <PageTransition>
-            <NotFound />
-          </PageTransition>
-        } 
-      />
+      {routes.map((route, i) => {
+        // For routes with children (nested routes)
+        if (route.children) {
+          return (
+            <Route key={i} path={route.path} element={route.element}>
+              {route.children.map((childRoute, j) => (
+                <Route
+                  key={`${i}-${j}`}
+                  path={childRoute.path.replace(route.path, '')}
+                  element={
+                    <PageTransition>
+                      {childRoute.element}
+                    </PageTransition>
+                  }
+                />
+              ))}
+            </Route>
+          );
+        }
+        
+        // For simple routes
+        return (
+          <Route
+            key={i}
+            path={route.path}
+            element={
+              <PageTransition>
+                {route.element}
+              </PageTransition>
+            }
+          />
+        );
+      })}
     </Routes>
   );
 };
@@ -122,8 +74,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <div className="min-h-screen">
-              <Navbar />
+            <div className="min-h-screen bg-background">
               <AppRoutes />
             </div>
           </BrowserRouter>
