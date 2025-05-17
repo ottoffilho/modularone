@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { GoogleIcon } from '@/components/ui/icons';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, XCircle } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -37,6 +37,7 @@ export default function Login() {
 
   const from = location.state?.from?.pathname || '/dashboard';
   const message = location.state?.message;
+  const errorMessage = location.state?.error;
   
   // Display toast message if it exists in the location state
   useEffect(() => {
@@ -46,7 +47,15 @@ export default function Login() {
         description: message,
       });
     }
-  }, [message, toast]);
+    
+    if (errorMessage) {
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  }, [message, errorMessage, toast]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -70,10 +79,21 @@ export default function Login() {
             description: "Por favor, verifique seu email para confirmar sua conta antes de fazer login.",
             variant: "destructive",
           });
+        } else {
+          toast({
+            title: "Erro ao fazer login",
+            description: error.message,
+            variant: "destructive",
+          });
         }
       }
     } catch (error) {
       console.error('Erro ao fazer login:', error);
+      toast({
+        title: "Erro ao fazer login",
+        description: "Ocorreu um erro durante o login. Por favor, tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -97,6 +117,13 @@ export default function Login() {
           <Alert className="mb-6 bg-green-50 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-500" />
             <AlertDescription className="text-green-700">{message}</AlertDescription>
+          </Alert>
+        )}
+        
+        {errorMessage && (
+          <Alert className="mb-6 bg-red-50 border-red-200">
+            <XCircle className="h-4 w-4 text-red-500" />
+            <AlertDescription className="text-red-700">{errorMessage}</AlertDescription>
           </Alert>
         )}
         

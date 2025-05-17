@@ -14,35 +14,54 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Check if this is an email confirmation callback
+        // Get parameters from both hash and query string
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const queryParams = new URLSearchParams(location.search);
         
+        // Check the type parameter from both locations
         const type = hashParams.get('type') || queryParams.get('type');
+        console.log('Auth callback type:', type);
         
         // Get session from URL (this is used in OAuth redirects and email confirmations)
         const { data, error: sessionError } = await supabase.auth.getSession();
         
-        if (sessionError) throw sessionError;
-        
-        // If it's an email confirmation, show success message
-        if (type === 'signup' || type === 'recovery' || type === 'email_change') {
-          toast({
-            title: "Email confirmado com sucesso!",
-            description: "Sua conta foi verificada.",
-          });
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          throw sessionError;
         }
         
+        console.log('Session data:', !!data.session);
+        
         if (data.session) {
-          // If we have a session, redirect to dashboard
+          // If we have a session, show success message for confirmations
+          if (type === 'signup' || type === 'recovery' || type === 'email_change') {
+            toast({
+              title: "Email confirmado com sucesso!",
+              description: "Sua conta foi verificada.",
+            });
+          }
+          
+          // Redirect to dashboard with session
           navigate('/dashboard');
         } else {
-          // If no session, redirect to login with a message
-          navigate('/login', { 
-            state: { 
-              message: type === 'signup' ? 'Email confirmado com sucesso! Faça login para continuar.' : undefined 
-            } 
-          });
+          // If no session but it was a signup confirmation, redirect with message
+          if (type === 'signup') {
+            navigate('/login', { 
+              state: { 
+                message: 'Email confirmado com sucesso! Faça login para continuar.' 
+              } 
+            });
+          } else if (type === 'recovery' || type === 'email_change') {
+            // For password recovery or email change
+            navigate('/login', { 
+              state: { 
+                message: 'Verificação concluída. Faça login para continuar.' 
+              } 
+            });
+          } else {
+            // Any other case, redirect to login
+            navigate('/login');
+          }
         }
       } catch (error) {
         console.error('Erro no callback de autenticação:', error);
@@ -50,7 +69,11 @@ export default function AuthCallback() {
         
         // Redirect to login after showing error
         setTimeout(() => {
-          navigate('/login');
+          navigate('/login', {
+            state: {
+              error: 'Ocorreu um erro durante a autenticação. Por favor, tente novamente.'
+            }
+          });
         }, 3000);
       }
     };
