@@ -1,28 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
   DialogDescription,
-  DialogFooter
+  DialogClose,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -30,367 +16,243 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Key } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
-// Interfaces
-interface CredentialFormProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  credential?: {
-    id: string;
-    fabricante_id: string;
-    nome_referencia: string;
-  } | null;
-  onSuccess?: () => void;
-}
-
-interface Fabricante {
+// Mocked interfaces (ajustar conforme database.types.ts)
+interface MockedFabricante {
   id: string;
   nome: string;
-  api_config_schema: any;
+  api_config_schema: {
+    fields: Array<{
+      name: string;
+      label: string;
+      type: 'text' | 'password';
+      required: boolean;
+      placeholder?: string;
+    }>;
+  };
 }
 
-interface ApiConfigField {
-  name: string;
-  label: string;
-  type: string;
-  required: boolean;
+interface FormValues {
+  fabricante_id: string;
+  credenciais: Record<string, string>;
 }
 
-const getBaseSchema = () => {
-  return z.object({
-    fabricante_id: z.string().uuid('Selecione um fabricante'),
-    nome_referencia: z.string().optional(),
-  });
-};
+// Schema Zod simplificado (refinar depois)
+const credentialFormSchema = z.object({
+  fabricante_id: z.string().min(1, "Selecione um fabricante."),
+  // credenciais será validado dinamicamente ou em uma etapa posterior
+  credenciais: z.record(z.string()).optional(), // Permitindo que seja opcional ou um record de strings
+});
 
-const CredentialFormDialog: React.FC<CredentialFormProps> = ({ 
-  open, 
-  onOpenChange, 
-  credential, 
-  onSuccess 
-}) => {
-  const { user } = useAuth();
-  const [fabricantes, setFabricantes] = useState<Fabricante[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [fetchingFabricantes, setFetchingFabricantes] = useState(true);
-  const [selectedFabricante, setSelectedFabricante] = useState<Fabricante | null>(null);
-  
-  // Schema inicial básico
-  const [validationSchema, setValidationSchema] = useState(getBaseSchema());
-  
-  // Obter fabricantes no carregamento
-  useEffect(() => {
-    const fetchFabricantes = async () => {
-      try {
-        setFetchingFabricantes(true);
-        
-        const { data, error } = await supabase
-          .from('fabricantes_equipamentos')
-          .select('id, nome, api_config_schema')
-          .eq('suporta_api_dados', true);
-          
-        if (error) throw error;
-        
-        setFabricantes(data || []);
-      } catch (error) {
-        console.error('Erro ao buscar fabricantes:', error);
-        toast.error('Erro ao carregar fabricantes disponíveis');
-      } finally {
-        setFetchingFabricantes(false);
-      }
-    };
-    
-    if (open) {
-      fetchFabricantes();
-    }
-  }, [open]);
-  
-  // Formulário com validação
-  const form = useForm<z.infer<typeof validationSchema>>({
-    resolver: zodResolver(validationSchema),
+interface CredentialFormDialogProps {
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  initialData?: any | null; //  (ex: { id: string; fabricante_id: string; credenciais_seguras: Record<string, string> })
+  onSave: (data: FormValues) => void;
+}
+
+export function CredentialFormDialog({
+  isOpen,
+  setIsOpen,
+  initialData,
+  onSave,
+}: CredentialFormDialogProps) {
+  const [fabricantes, setFabricantes] = useState<MockedFabricante[]>([]);
+  const [isLoadingFabricantes, setIsLoadingFabricantes] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(credentialFormSchema),
     defaultValues: {
-      fabricante_id: credential?.fabricante_id || '',
-      nome_referencia: credential?.nome_referencia || '',
+      fabricante_id: initialData?.fabricante_id || '',
+      credenciais: initialData?.credenciais_seguras || {},
     },
   });
 
-  // Atualizar schema quando o fabricante mudar
+  const selectedFabricanteId = form.watch('fabricante_id');
+
+  const selectedFabricanteSchema = useMemo(() => {
+    if (!selectedFabricanteId) return null;
+    return fabricantes.find(f => f.id === selectedFabricanteId)?.api_config_schema || null;
+  }, [selectedFabricanteId, fabricantes]);
+
+  // Mocked data loading para fabricantes
   useEffect(() => {
-    if (!selectedFabricante || !selectedFabricante.api_config_schema?.fields) return;
-    
-    // Construir schema dinâmico com base nos campos do fabricante
-    let dynamicSchema = getBaseSchema();
-    
-    // Objeto para armazenar configurações de credenciais
-    let credenciaisConfig: Record<string, z.ZodTypeAny> = {};
-    
-    // Para cada campo no schema do fabricante
-    for (const field of selectedFabricante.api_config_schema.fields) {
-      let fieldValidation;
-      
-      if (field.type === 'text' || field.type === 'password') {
-        if (field.required) {
-          fieldValidation = z.string().min(1, `${field.label} é obrigatório`);
-        } else {
-          fieldValidation = z.string().optional();
-        }
-      } else {
-        // Outros tipos de campo, se necessário
-        fieldValidation = z.string().optional();
-      }
-      
-      credenciaisConfig[field.name] = fieldValidation;
-    }
-    
-    // Adicionar validações de campos de credenciais ao schema base
-    const newSchema = dynamicSchema.extend(credenciaisConfig);
-    setValidationSchema(newSchema);
-    
-    // Reset form com schema atualizado
-    form.reset(form.getValues());
-  }, [selectedFabricante]);
-  
-  // Buscar dados da credencial para edição
+    setIsLoadingFabricantes(true);
+    const timer = setTimeout(() => {
+      setFabricantes([
+        {
+          id: 'growatt_mock_id',
+          nome: 'Growatt (Mock)',
+          api_config_schema: {
+            fields: [
+              { name: 'username', label: 'Usuário API Growatt', type: 'text', required: true, placeholder: 'Seu usuário Growatt' },
+              { name: 'password', label: 'Senha API Growatt', type: 'password', required: true, placeholder: 'Sua senha Growatt' },
+            ],
+          },
+        },
+        {
+          id: 'saj_mock_id',
+          nome: 'SAJ (Mock)',
+          api_config_schema: {
+            fields: [
+              { name: 'api_key', label: 'SAJ API Key', type: 'password', required: true, placeholder: 'Sua chave de API SAJ' },
+            ],
+          },
+        },
+        {
+          id: 'goodwe_mock_id',
+          nome: 'GoodWe (Mock)',
+          api_config_schema: {
+            fields: [
+              { name: 'account', label: 'GoodWe Account ID', type: 'text', required: true },
+              { name: 'key', label: 'GoodWe API Key', type: 'password', required: true },
+            ],
+          },
+        },
+      ]);
+      setIsLoadingFabricantes(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
-    const fetchCredentialDetails = async () => {
-      if (!credential || !user) return;
-      
-      try {
-        // Obter detalhes do fabricante selecionado
-        const fabricante = fabricantes.find(f => f.id === credential.fabricante_id);
-        if (fabricante) {
-          setSelectedFabricante(fabricante);
-        }
-        
-        // Não precisamos buscar as credenciais seguras aqui - serão preenchidas pelo usuário novamente
-        // Os campos sensíveis nunca são exibidos em texto claro no front-end
-      } catch (error) {
-        console.error('Erro ao buscar detalhes da credencial:', error);
-        toast.error('Erro ao carregar detalhes da credencial');
-      }
-    };
-    
-    if (open && credential && fabricantes.length > 0) {
-      fetchCredentialDetails();
-    }
-  }, [credential, open, fabricantes, user]);
-  
-  // Handler de mudança de fabricante
-  const handleFabricanteChange = (fabricanteId: string) => {
-    const fabricante = fabricantes.find(f => f.id === fabricanteId);
-    if (fabricante) {
-      setSelectedFabricante(fabricante);
-      
-      // Atualizar nome de referência se vazio
-      const currentNomeRef = form.getValues('nome_referencia');
-      if (!currentNomeRef) {
-        form.setValue('nome_referencia', `${fabricante.nome} API`);
-      }
-    } else {
-      setSelectedFabricante(null);
-    }
-  };
-  
-  // Submissão do formulário
-  const onSubmit = async (values: z.infer<typeof validationSchema>) => {
-    if (!user || !selectedFabricante) return;
-    
-    try {
-      setLoading(true);
-      
-      // Extrair campos específicos para o objeto de credenciais
-      const credenciaisObjeto: Record<string, string> = {};
-      
-      // Iterar sobre campos do schema
-      if (selectedFabricante.api_config_schema?.fields) {
-        for (const field of selectedFabricante.api_config_schema.fields) {
-          const fieldName = field.name;
-          // @ts-ignore - Campos dinâmicos
-          const fieldValue = values[fieldName];
-          
-          if (fieldValue) {
-            credenciaisObjeto[fieldName] = fieldValue;
-          }
-        }
-      }
-      
-      // Preparar payload para a Edge Function
-      const payload = {
-        fabricante_id: values.fabricante_id,
-        nome_referencia: values.nome_referencia,
-        credenciais_objeto: credenciaisObjeto
-      };
-      
-      // Chamar a Edge Function para processar e salvar as credenciais
-      const { data, error } = await supabase.functions.invoke('manage-user-integration-credentials', {
-        body: payload
+    if (initialData) {
+      form.reset({
+        fabricante_id: initialData.fabricante_id || '',
+        // Não repopular senhas. Campos de credenciais serão reconstruídos pelo schema.
+        // Se initialData.credenciais_seguras existir, poderia ser usado para preencher campos não-senha
+        // mas a renderização dinâmica cuidará dos campos em si.
+        credenciais: {},
       });
-      
-      if (error) throw error;
-      
-      toast.success(credential 
-        ? 'Credenciais atualizadas com sucesso' 
-        : 'Credenciais registradas com sucesso'
-      );
-      
-      // Callback de sucesso
-      if (onSuccess) {
-        onSuccess();
-      }
-      
-      // Fechar o diálogo
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Erro ao salvar credenciais:', error);
-      toast.error(`Erro ao ${credential ? 'atualizar' : 'registrar'} credenciais: ${
-        (error as any)?.message || 'Erro desconhecido'
-      }`);
-    } finally {
-      setLoading(false);
+    } else {
+      form.reset({ fabricante_id: '', credenciais: {} });
     }
+  }, [initialData, form, isOpen]); // Adicionado isOpen para resetar ao abrir
+
+  // Resetar campos de credenciais quando o fabricante mudar
+  useEffect(() => {
+    form.setValue('credenciais', {});
+  }, [selectedFabricanteId, form]);
+
+  const onSubmit = async (data: FormValues) => {
+    setIsSubmitting(true);
+    console.log('Form data submitted:', data);
+    // Simular chamada de API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    onSave(data); // Chamar o callback onSave passado pela IntegrationsPage
+    setIsSubmitting(false);
+    setIsOpen(false); // Fechar o diálogo após salvar
   };
 
-  // Renderizar campos dinâmicos com base no schema do fabricante
-  const renderDynamicFields = () => {
-    if (!selectedFabricante || !selectedFabricante.api_config_schema?.fields) {
-      return null;
-    }
-    
-    return selectedFabricante.api_config_schema.fields.map((field: ApiConfigField) => {
-      return (
-        <FormField
-          key={field.name}
-          // @ts-ignore - Campos dinâmicos
-          control={form.control}
-          name={field.name}
-          render={({ field: formField }) => (
-            <FormItem>
-              <FormLabel>{field.label}{field.required && ' *'}</FormLabel>
-              <FormControl>
-                <Input 
-                  {...formField} 
-                  type={field.type} 
-                  placeholder={`Digite ${field.label.toLowerCase()}`}
-                  autoComplete={field.type === 'password' ? 'new-password' : 'off'}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      );
-    });
-  };
-  
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{credential ? 'Editar' : 'Adicionar'} Credenciais de API</DialogTitle>
+          <DialogTitle>
+            {initialData ? 'Editar Integração' : 'Adicionar Nova Integração'}
+          </DialogTitle>
           <DialogDescription>
-            {credential 
-              ? 'Atualize suas credenciais para esta integração de API.' 
-              : 'Configure suas credenciais para acessar APIs de fabricantes.'
-            }
+            {initialData 
+              ? `Editando credenciais para ${fabricantes.find(f => f.id === initialData.fabricante_id)?.nome || 'fabricante desconhecido'}.`
+              : 'Selecione um fabricante e insira suas credenciais de API.'}
           </DialogDescription>
         </DialogHeader>
         
-        {fetchingFabricantes ? (
-          <div className="flex justify-center items-center py-8">
+        {isLoadingFabricantes ? (
+          <div className="flex items-center justify-center h-40">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2">Carregando fabricantes...</p>
           </div>
         ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
+            <div>
+              <Label htmlFor="fabricante_id">Fabricante</Label>
+              <Controller
                 name="fabricante_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fabricante *</FormLabel>
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        handleFabricanteChange(value);
-                      }}
-                      value={field.value}
-                      disabled={!!credential} // Não permite mudar o fabricante na edição
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um fabricante" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {fabricantes.map((fabricante) => (
-                          <SelectItem key={fabricante.id} value={fabricante.id}>
-                            {fabricante.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
                 control={form.control}
-                name="nome_referencia"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nome de Referência</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field} 
-                        placeholder="Ex: Growatt API Principal"
-                        value={field.value || ''}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value} 
+                    disabled={!!initialData} // Desabilitar se estiver editando
+                  >
+                    <SelectTrigger id="fabricante_id" className="mt-1">
+                      <SelectValue placeholder="Selecione um fabricante" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fabricantes.map((fab) => (
+                        <SelectItem key={fab.id} value={fab.id}>
+                          {fab.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               />
-              
-              {selectedFabricante && (
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center mb-4">
-                    <Key className="h-4 w-4 mr-2 text-amber-500" />
-                    <h4 className="font-medium">Credenciais de Acesso</h4>
-                  </div>
-                  <div className="space-y-4">
-                    {renderDynamicFields()}
-                  </div>
-                </div>
+              {form.formState.errors.fabricante_id && (
+                <p className="text-sm text-red-500 mt-1">{form.formState.errors.fabricante_id.message}</p>
               )}
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => onOpenChange(false)}
-                  disabled={loading}
-                >
+            </div>
+
+            {selectedFabricanteSchema && selectedFabricanteSchema.fields.map((fieldConfig) => (
+              <div key={fieldConfig.name}>
+                <Label htmlFor={`credenciais.${fieldConfig.name}`}>{fieldConfig.label}</Label>
+                <Controller
+                  name={`credenciais.${fieldConfig.name}` as any} // Cast para any devido à natureza dinâmica
+                  control={form.control}
+                  // Adicionar regras de validação aqui se necessário, ex: required: fieldConfig.required
+                  render={({ field }) => (
+                    <Input
+                      id={`credenciais.${fieldConfig.name}`}
+                      type={fieldConfig.type}
+                      placeholder={fieldConfig.placeholder || ''}
+                      {...field}
+                      className="mt-1"
+                    />
+                  )}
+                />
+                {/* Validação dinâmica de erro pode ser complexa aqui sem um schema Zod dinâmico completo */}
+                {/* Exemplo simples: 
+                {form.formState.errors.credenciais?.[fieldConfig.name] && (
+                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.credenciais[fieldConfig.name].message}</p>
+                )} 
+                */}
+              </div>
+            ))}
+            
+            {selectedFabricanteId && !selectedFabricanteSchema && (
+                <p className="text-sm text-yellow-600 mt-2">
+                    Configuração de API para este fabricante não encontrada ou inválida.
+                </p>
+            )}
+
+            <DialogFooter className="pt-4">
+              <DialogClose asChild>
+                <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={loading || !selectedFabricante}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {credential ? 'Atualizando...' : 'Salvando...'}
-                    </>
-                  ) : (
-                    credential ? 'Atualizar Credenciais' : 'Salvar Credenciais'
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+              </DialogClose>
+              <Button type="submit" disabled={isSubmitting || !selectedFabricanteSchema || selectedFabricanteSchema.fields.length === 0}>
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</>
+                ) : (
+                  'Salvar Credenciais'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         )}
       </DialogContent>
     </Dialog>
   );
-};
-
-export default CredentialFormDialog; 
+} 
