@@ -1,4 +1,3 @@
-
 export type Json =
   | string
   | number
@@ -125,6 +124,73 @@ export interface Database {
           nome_arquivo?: string
           unidade_consumidora_id?: string
           user_id?: string
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      fabricantes_equipamentos: {
+        Row: {
+          id: string
+          nome: string
+          descricao: string | null
+          suporta_api_dados: boolean
+          api_config_schema: Json | null
+          user_id: string
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          nome: string
+          descricao?: string | null
+          suporta_api_dados?: boolean
+          api_config_schema?: Json | null
+          user_id: string
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          nome?: string
+          descricao?: string | null
+          suporta_api_dados?: boolean
+          api_config_schema?: Json | null
+          user_id?: string
+          created_at?: string
+          updated_at?: string | null
+        }
+      }
+      credenciais_servico_usuario: {
+        Row: {
+          id: string
+          user_id: string
+          fabricante_id: string
+          credenciais_seguras: Json
+          nome_referencia: string | null
+          status_validacao: string
+          ultima_validacao_em: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          fabricante_id: string
+          credenciais_seguras: Json
+          nome_referencia?: string | null
+          status_validacao?: string
+          ultima_validacao_em?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          fabricante_id?: string
+          credenciais_seguras?: Json
+          nome_referencia?: string | null
+          status_validacao?: string
+          ultima_validacao_em?: string | null
           created_at?: string
           updated_at?: string | null
         }

@@ -3,13 +3,13 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useToast } from "@/hooks/use-toast";
 
-interface AuthContextType {
+export interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, metadata?: { 
-    full_name?: string; 
+  signUp: (email: string, password: string, metadata?: {
+    full_name?: string;
     phone?: string;
     username?: string;
   }) => Promise<{ error: Error | null }>;
@@ -19,7 +19,7 @@ interface AuthContextType {
   signOut: () => Promise<{ error: Error | null }>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);

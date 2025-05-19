@@ -26,6 +26,7 @@ import Settings from '@/pages/settings/Settings';
 import PlantasSolaresList from '@/pages/plantas_solares/PlantasSolaresList';
 import PlantaSolarForm from '@/pages/plantas_solares/PlantaSolarForm';
 import PlantaSolarDetails from '@/pages/plantas_solares/PlantaSolarDetails';
+import IntegrationsPage from '@/pages/settings/integrations/IntegrationsPage';
 
 // Routes configuration
 const routes = [
@@ -119,6 +120,10 @@ const routes = [
       {
         path: '/configuracoes',
         element: <Settings />,
+      },
+      {
+        path: '/configuracoes/integracoes',
+        element: <IntegrationsPage />,
       },
       {
         path: '/plantas-solares',
