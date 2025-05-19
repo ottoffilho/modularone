@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,13 +48,13 @@ import {
   XCircle, 
   AlertCircle 
 } from 'lucide-react';
-import CredentialFormDialog from './CredentialFormDialog';
+import { CredentialFormDialog } from './CredentialFormDialog';
 
 // Interfaces
 interface Fabricante {
   id: string;
   nome: string;
-  api_config_schema: any;
+  api_config_schema: unknown;
 }
 
 interface Credencial {
@@ -66,6 +66,46 @@ interface Credencial {
   ultima_validacao_em: string;
 }
 
+// Mocked interfaces (conforme sugerido, até termos os tipos reais do database.types.ts)
+interface MockedIntegration {
+  id: string;
+  fabricanteNome: string;
+  statusValidacao: 'Válido' | 'Inválido' | 'Pendente';
+  ultimaValidacaoEm: string | null;
+}
+
+interface MockedFabricante {
+  id: string;
+  nome: string;
+  api_config_schema: any; // Detalhar isso mais tarde
+}
+
+// Interface para os valores recebidos do form
+interface IntegrationFormValues {
+  fabricante_id: string;
+  credenciais: Record<string, string>;
+}
+
+// Adapter para transformar os dados do form para o formato esperado pelo componente
+function adaptFormValuesToIntegration(formValues: IntegrationFormValues, fabricantes: MockedFabricante[]): MockedIntegration {
+  const fabricante = fabricantes.find(f => f.id === formValues.fabricante_id);
+  
+  return {
+    id: formValues.fabricante_id, // Usando fabricante_id como id da integração
+    fabricanteNome: fabricante?.nome || 'Desconhecido',
+    statusValidacao: 'Pendente', // Status inicial
+    ultimaValidacaoEm: new Date().toLocaleDateString()
+  };
+}
+
+// Interface para o CredentialFormDialog (placeholder)
+interface CredentialFormDialogProps {
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  initialData?: MockedIntegration | null;
+  onSave: (data: IntegrationFormValues) => void;
+}
+
 const IntegrationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -73,11 +113,15 @@ const IntegrationsPage: React.FC = () => {
   const [selectedCredential, setSelectedCredential] = useState<Credencial | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
+  const [integrations, setIntegrations] = useState<MockedIntegration[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedIntegration, setSelectedIntegration] = useState<MockedIntegration | null>(null);
 
   // Consulta para buscar as credenciais do usuário
-  const { data: credenciais, isLoading, isError, error } = useQuery({
+  const { data: credenciais, isLoading: isCredenciaisLoading, isError, error } = useQuery({
     queryKey: ['credenciais', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Credencial[]> => {
       if (!user) return [];
 
       // Buscar credenciais do usuário
@@ -133,8 +177,8 @@ const IntegrationsPage: React.FC = () => {
       setDeleteDialogOpen(false);
       setCredentialToDelete(null);
     },
-    onError: (error: any) => {
-      toast.error(`Erro ao excluir credencial: ${error.message}`);
+    onError: (error: unknown) => {
+      toast.error(`Erro ao excluir credencial: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       setDeleteDialogOpen(false);
     }
   });
@@ -160,10 +204,24 @@ const IntegrationsPage: React.FC = () => {
       toast.success('Credenciais revalidadas com sucesso');
       queryClient.invalidateQueries({ queryKey: ['credenciais'] });
     },
-    onError: (error: any) => {
-      toast.error(`Erro ao revalidar credenciais: ${error.message}`);
+    onError: (error: unknown) => {
+      toast.error(`Erro ao revalidar credenciais: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   });
+
+  // Mocked data loading
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIntegrations([
+        { id: '1', fabricanteNome: 'Growatt', statusValidacao: 'Válido', ultimaValidacaoEm: new Date().toLocaleDateString() },
+        { id: '2', fabricanteNome: 'SAJ', statusValidacao: 'Pendente', ultimaValidacaoEm: null },
+        { id: '3', fabricanteNome: 'GoodWe', statusValidacao: 'Inválido', ultimaValidacaoEm: new Date(Date.now() - 86400000 * 5).toLocaleDateString() },
+      ]);
+      setIsLoading(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Handlers
   const handleOpenDialog = (credential?: Credencial) => {
@@ -193,6 +251,23 @@ const IntegrationsPage: React.FC = () => {
 
   const handleRevalidateClick = (credentialId: string) => {
     revalidateCredentialMutation.mutate(credentialId);
+  };
+
+  const handleAddNew = () => {
+    setSelectedIntegration(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (integration: MockedIntegration) => {
+    setSelectedIntegration(integration);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteIntegration = (integrationId: string) => {
+    // Lógica de exclusão será implementada depois
+    console.log(`Excluir integração: ${integrationId}`);
+    alert(`Simular exclusão da integração ID: ${integrationId}`);
+    // setIntegrations(prev => prev.filter(int => int.id !== integrationId)); // Exemplo de como poderia ser
   };
 
   // Renderizar status com ícones
@@ -244,7 +319,7 @@ const IntegrationsPage: React.FC = () => {
             Gerencie suas integrações com fabricantes de equipamentos e serviços externos.
           </p>
         </div>
-        <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto">
+        <Button onClick={handleAddNew} className="w-full sm:w-auto">
           <PlusCircle className="h-4 w-4 mr-2" />
           Nova Integração
         </Button>
@@ -269,7 +344,7 @@ const IntegrationsPage: React.FC = () => {
             <div className="p-8 text-center">
               <p className="text-red-500 mb-2">Erro ao carregar credenciais</p>
               <p className="text-sm text-muted-foreground">
-                {(error as any)?.message || 'Ocorreu um erro ao carregar suas credenciais de integração.'}
+                {(error as Error)?.message || 'Ocorreu um erro ao carregar suas credenciais de integração.'}
               </p>
             </div>
           ) : credenciais && credenciais.length > 0 ? (
@@ -333,7 +408,7 @@ const IntegrationsPage: React.FC = () => {
               <p className="text-muted-foreground mb-4">
                 Para começar a usar APIs de fabricantes, adicione suas credenciais de integração.
               </p>
-              <Button onClick={() => handleOpenDialog()}>
+              <Button onClick={handleAddNew}>
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Adicionar Integração
               </Button>
@@ -343,13 +418,50 @@ const IntegrationsPage: React.FC = () => {
       </Card>
 
       {/* Dialog para adicionar/editar credenciais */}
-      <CredentialFormDialog 
-        open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen} 
-        credential={selectedCredential}
-        onSuccess={() => {
-          handleCloseDialog();
-          queryClient.invalidateQueries({ queryKey: ['credenciais'] });
+      <CredentialFormDialog
+        isOpen={isFormOpen}
+        setIsOpen={setIsFormOpen}
+        initialData={selectedIntegration ? {
+          fabricante_id: selectedIntegration.id,
+          credenciais_seguras: {} // Não temos as credenciais para edição, só os metadados
+        } : null}
+        onSave={(formValues) => {
+          console.log('Integração salva/atualizada (mock):', formValues);
+          
+          // Lista mockada de fabricantes para o adaptador
+          const mockFabricantes: MockedFabricante[] = [
+            { id: 'growatt_mock_id', nome: 'Growatt', api_config_schema: { fields: [] } },
+            { id: 'saj_mock_id', nome: 'SAJ', api_config_schema: { fields: [] } },
+            { id: 'goodwe_mock_id', nome: 'GoodWe', api_config_schema: { fields: [] } }
+          ];
+          
+          setIsLoading(true);
+          const timer = setTimeout(() => {
+            setIntegrations(prevIntegrations => {
+              // Verificar se a integração já existe pelo fabricante_id
+              const existingIndex = prevIntegrations.findIndex(int => int.id === formValues.fabricante_id);
+              
+              if (existingIndex > -1) {
+                // Atualiza o item existente
+                const updatedIntegrations = [...prevIntegrations];
+                const adaptedData = adaptFormValuesToIntegration(formValues, mockFabricantes);
+                
+                updatedIntegrations[existingIndex] = {
+                  ...updatedIntegrations[existingIndex],
+                  fabricanteNome: adaptedData.fabricanteNome,
+                  statusValidacao: 'Válido', // Assumindo que edição implica em validação
+                  ultimaValidacaoEm: new Date().toLocaleDateString()
+                };
+                return updatedIntegrations;
+              } else {
+                // Adiciona novo item
+                const newIntegration = adaptFormValuesToIntegration(formValues, mockFabricantes);
+                return [...prevIntegrations, newIntegration];
+              }
+            });
+            setIsLoading(false);
+          }, 500);
+          return () => clearTimeout(timer);
         }}
       />
 
