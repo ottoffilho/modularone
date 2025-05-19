@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -27,13 +26,16 @@ import {
   Moon,
   Sun,
   Laptop,
+  PlugZap,
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
   const { toast } = useToast();
   const { theme, toggleTheme, setTheme } = useTheme();
   const [integrationLoading, setIntegrationLoading] = useState(false);
+  const navigate = useNavigate();
   
   const handleStripeConnect = () => {
     setIntegrationLoading(true);
@@ -153,6 +155,32 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="integrations" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <PlugZap className="mr-2 h-5 w-5" /> Integrações de API
+              </CardTitle>
+              <CardDescription>
+                Configure suas credenciais para integração com APIs de fabricantes de equipamentos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm">
+                  Configure suas credenciais de API para integração com fabricantes de equipamentos como Growatt, permitindo importar dados de monitoramento.
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                onClick={() => navigate('/configuracoes/integracoes')} 
+                className="w-full"
+              >
+                Gerenciar Integrações de API
+              </Button>
+            </CardFooter>
+          </Card>
+          
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
