@@ -1,4 +1,4 @@
-
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
@@ -23,6 +23,9 @@ import FaturasUpload from '@/pages/faturas/FaturasUpload';
 import AIAssistant from '@/pages/ai/AIAssistant';
 import Profile from '@/pages/profile/Profile';
 import Settings from '@/pages/settings/Settings';
+import PlantasSolaresList from '@/pages/plantas_solares/PlantasSolaresList';
+import PlantaSolarForm from '@/pages/plantas_solares/PlantaSolarForm';
+import PlantaSolarDetails from '@/pages/plantas_solares/PlantaSolarDetails';
 
 // Routes configuration
 const routes = [
@@ -74,12 +77,16 @@ const routes = [
         element: <ClienteForm />,
       },
       {
-        path: '/clientes/:id',
+        path: '/clientes/detalhes/:id',
         element: <ClienteDetails />,
       },
       {
         path: '/clientes/:id/editar',
         element: <ClienteForm />,
+      },
+      {
+        path: '/clientes/:id/ucs',
+        element: <ClienteDetails />,
       },
       {
         path: '/ucs',
@@ -112,6 +119,22 @@ const routes = [
       {
         path: '/configuracoes',
         element: <Settings />,
+      },
+      {
+        path: '/plantas-solares',
+        element: <PlantasSolaresList />,
+      },
+      {
+        path: '/plantas-solares/novo',
+        element: <PlantaSolarForm />,
+      },
+      {
+        path: '/plantas-solares/:id',
+        element: <PlantaSolarDetails />,
+      },
+      {
+        path: '/plantas-solares/:id/editar',
+        element: <PlantaSolarForm />,
       },
     ],
   },
