@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -93,7 +92,7 @@ export default function Profile() {
     };
     
     getProfile();
-  }, [user]);
+  }, [user, form.reset, toast]);
 
   const onSubmit = async (values: ProfileFormValues) => {
     if (!user) return;
