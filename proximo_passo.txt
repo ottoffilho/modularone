@@ -1,0 +1,104 @@
+## Resumo do Progresso e Próximos Passos - ModularOne
+
+### O que foi Feito:
+
+**Modelagem do Banco de Dados (Supabase):**
+*   [X] **`distribuidoras`**: Criada e populada.
+*   [X] **`modelos_inversores`**: Criada e populada com placeholders.
+*   [X] **`clientes`**: Estrutura definida (ID, proprietario_user_id, tipo, dados cadastrais, etc.).
+*   [X] **`plantas_solares`**: Estrutura definida (ID, proprietario_user_id, cliente_id, nome, etc.).
+*   [X] **`unidades_consumidoras` (UCs)**: Estrutura definida (ID, proprietario_user_id, cliente_id, distribuidora_id, numero_uc, tipo, etc.).
+
+**Backend (Supabase Edge Functions - Deno/TypeScript):**
+*   **`Plantas Solares` (Proprietário):**
+    *   [X] `criar-planta-solar`: POST - Implementado.
+*   **`Unidades Consumidoras` (Proprietário):**
+    *   [X] `criar-unidade-consumidora`: POST - Implementado.
+*   **`Clientes` (Consumidores de Energia):**
+    *   [X] `criar-cliente`: POST - Implementado (via `ClienteForm.tsx` direto no Supabase).
+    *   [X] `listar-clientes`: GET (com filtros, paginação, ordenação) - Implementado (via `ClientesList.tsx` direto no Supabase).
+    *   [X] `obter-cliente`: GET por ID - Implementado (via `ClienteDetails.tsx` e `ClienteForm.tsx` direto no Supabase).
+    *   [X] `atualizar-cliente`: PUT por ID - Implementado (via `ClienteForm.tsx` direto no Supabase).
+    *   [X] `deletar-cliente`: DELETE por ID - Lógica de verificação de UCs no frontend (`ClientesList.tsx`, `ClienteDetails.tsx`), deleção direta no Supabase.
+
+**Frontend (React - ModularOne):**
+*   **Página de Listagem de Clientes (`/clientes` - `src/pages/clientes/ClientesList.tsx`):**
+    *   [X] Estrutura da página com tabela, filtros e ações por linha implementada.
+    *   [X] Lógica de deleção no frontend inclui verificação de UCs vinculadas.
+    *   [X] Design visual aplicado.
+    *   [X] Rota `/clientes` configurada.
+    *   [X] Ações funcionais: Adicionar Novo Cliente (navega para formulário), Editar Cliente (navega para formulário), Ver Detalhes (navega para página de detalhes), Deletar.
+
+*   **Formulário de Criação/Edição de Cliente (`src/pages/clientes/ClienteForm.tsx`):**
+    *   [X] Componente de formulário com `react-hook-form` e `zodResolver`.
+    *   [X] Campos dinâmicos PF/PJ.
+    *   [X] Validação de campos.
+    *   [X] Integração com Supabase para criar e atualizar clientes.
+    *   [ ] Busca de CEP para preenchimento automático de endereço.
+
+*   **Página de Detalhes do Cliente (`src/pages/clientes/ClienteDetails.tsx`):**
+    *   [X] Exibição completa dos dados do cliente.
+    *   [X] Listagem de UCs associadas (com nome e endereço).
+    *   [X] Ações: Editar Cliente (navega para formulário), Excluir Cliente.
+
+### Próximos Passos Imediatos:
+
+1.  **Frontend - Unidades Consumidoras (UCs) - CRUD Completo:**
+    *   **Formulário de Criação/Edição de UC (`src/pages/ucs/UCForm.tsx`):**
+        *   [ ] Definir rotas: `/ucs/novo` (capturando `clienteId` opcional da URL) e `/ucs/editar/:id`.
+        *   [ ] Criar componente `UCForm.tsx`.
+        *   [ ] Campos: `nome_identificador` (obrigatório), `numero_uc` (obrigatório), `distribuidora_id` (Select buscando de `distribuidoras`), `tipo_uc` (Select: "CONSUMIDORA_LOCAL", "GERADORA_PRINCIPAL", "BENEFICIARIA_CREDITOS"), `cliente_id` (Select buscando de `clientes`, ou pré-selecionado se `clienteId` vier da URL), endereço (`cep`, `logradouro`, `numero_endereco`, `complemento`, `bairro`, `cidade`, `estado`).
+        *   [ ] (Opcional) Implementar busca de CEP para preenchimento de endereço.
+        *   [ ] Validação com Zod.
+        *   [ ] Lógica de submissão para criar/atualizar UCs na tabela `unidades_consumidoras` (Supabase).
+        *   [ ] Lógica para carregar dados da UC no modo de edição.
+    *   **Listagem de UCs (`src/pages/ucs/UCsList.tsx`):**
+        *   [ ] Definir rota: `/ucs`.
+        *   [ ] Criar componente `UCsList.tsx`.
+        *   [ ] Tabela com colunas relevantes (Nome, Número UC, Cliente, Tipo, etc.).
+        *   [ ] Filtros (por cliente, por tipo, etc.).
+        *   [ ] Ações: Adicionar UC, Ver Detalhes (se houver página de detalhes), Editar, Excluir.
+    *   **Página de Detalhes da UC (`src/pages/ucs/UCDetails.tsx`) (Opcional/Simplificado):**
+        *   [ ] Se necessário, uma página simples para exibir todos os detalhes de uma UC.
+    *   **Deleção de UCs:**
+        *   [ ] Implementar lógica de exclusão em `UCsList.tsx` (ou `UCDetails.tsx`) com modal de confirmação.
+
+2.  **Backend - `Unidades Consumidoras` (Revisão/Ajuste):**
+    *   [ ] Revisar/confirmar as Edge Functions existentes (`criar-unidade-consumidora`, e se houver `atualizar-unidade-consumidora`, `deletar-unidade-consumidora`, `listar-unidades-consumidoras`, `obter-unidade-consumidora`) para garantir que os campos e lógicas estão alinhados com os requisitos do novo formulário frontend. Caso não existam, priorizar a criação usando chamadas diretas ao Supabase no frontend primeiro, e avaliar necessidade de Edge Functions depois.
+
+3.  **Frontend - ClienteForm.tsx (Melhoria Pendente):**
+    *   [ ] Implementar "Busca de CEP para preenchimento automático de endereço."
+
+
+### Próximos Passos - Backend (Expansão de CRUDs - Manter como referência):
+
+1.  **`Plantas Solares`:**
+    *   [ ] `listar-plantas-solares`: GET (para o proprietário autenticado, opcionalmente filtrando por cliente).
+    *   [ ] `obter-planta-solar`: GET, por ID (para o proprietário).
+    *   [ ] `atualizar-planta-solar`: PUT, por ID.
+    *   [ ] `deletar-planta-solar`: DELETE, por ID.
+    *   [ ] **Frontend para CRUD de Plantas Solares.**
+
+2.  **`Unidades Consumidoras` (Funcionalidades Avançadas):**
+    *   [ ] Funções específicas para associar/desassociar UCs consumidoras/beneficiárias a UCs geradoras (rateio) - tanto backend quanto frontend.
+
+### Fase Futura: Modelagem de Dados Adicional e Funcionalidades Avançadas (Pendente)
+
+*   **Modelagem Pendente:**
+    *   Tabela `faturas`
+    *   Tabela `medicoes_energia`
+    *   Tabela para relacionamento de `modelos_inversores` com `plantas_solares`.
+*   **Funcionalidades Avançadas:**
+    *   Lógica de rateio de créditos (detalhada).
+    *   Integrações com APIs (Growatt, SAJ).
+    *   Processamento de faturas (OCR).
+
+### Considerações Gerais (Reiteração):
+*   **Autenticação e Autorização.**
+*   **Componentes Reutilizáveis.**
+*   **Testes.**
+*   **Documentação.**
+
+Foco principal agora: **Implementar o CRUD completo para Unidades Consumidoras no frontend.**
+
+Este plano é um ponto de partida. Vamos detalhar cada etapa conforme avançamos. 

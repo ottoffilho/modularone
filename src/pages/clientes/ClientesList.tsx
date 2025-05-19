@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient, type QueryFunctionContext } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -153,9 +153,9 @@ export default function ClientesList() {
     setTipoClienteFilter(value === 'todos' ? undefined : value);
   };
 
-  const handleDeleteCliente = (cliente: Cliente) => {
+  const handleDeleteCliente = useCallback((cliente: Cliente) => {
     setClienteParaDeletar(cliente);
-  };
+  }, []);
 
   const confirmDelete = () => {
     if (clienteParaDeletar) {
@@ -236,10 +236,6 @@ export default function ClientesList() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 shadow-lg border-border/80">
-              <DropdownMenuItem onSelect={() => navigate(`/clientes/editar/${cliente.id}`)} className="cursor-pointer group">
-                <Pencil className="mr-2.5 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="group-hover:text-primary transition-colors">Editar Cliente</span>
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => navigate(`/clientes/detalhes/${cliente.id}`)} className="cursor-pointer group">
                 <Eye className="mr-2.5 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                 <span className="group-hover:text-primary transition-colors">Ver Detalhes</span>
@@ -257,7 +253,7 @@ export default function ClientesList() {
         </TableCell>
       </TableRow>
     ));
-  }, [queryInfo.data, queryInfo.isLoading, queryInfo.isError, queryInfo.fetchStatus, queryInfo.error, queryInfo.refetch, debouncedSearchTerm, tipoClienteFilter, navigate, queryInfo]);
+  }, [queryInfo, debouncedSearchTerm, tipoClienteFilter, setSearchTerm, setTipoClienteFilter, navigate, handleDeleteCliente]);
 
   return (
     <AppShell 

@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -25,14 +24,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+// Interface ajustada para corresponder ao retorno da função RPC
 interface UC {
   id: string;
-  identificador: string;
-  endereco: string;
-  distribuidora: string;
+  nome_identificador: string | null;
+  numero_uc: string | null;
+  endereco: string | null;
   cliente_id: string | null;
-  cliente_nome_razao_social: string | null;
   created_at: string;
+  cliente_nome_razao_social: string | null;
+  distribuidora_nome: string | null;
   faturas_count: number;
 }
 
@@ -44,33 +45,27 @@ export default function UCsList() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const loadUCs = async () => {
+  const loadUCs = useCallback(async () => {
     if (!user) return;
 
     try {
       setLoading(true);
 
-      // Join with clientes to get cliente name
-      const { data, error } = await supabase
-        .from('unidades_consumidoras')
-        .select(`
-          *,
-          clientes:cliente_id (nome_razao_social),
-          faturas:faturas(count)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      // Chamar a função RPC
+      const { data, error } = await supabase.rpc('get_unidades_consumidoras_com_contagem_faturas', {
+        p_user_id: user.id,
+      });
 
       if (error) throw error;
 
-      // Process data to include cliente name and faturas count
-      const processedData = data.map((uc: any) => ({
-        ...uc,
-        cliente_nome_razao_social: uc.clientes?.nome_razao_social || null,
-        faturas_count: uc.faturas?.length || 0,
+      // Os dados já vêm processados da função RPC
+      // A contagem de faturas (BIGINT no PG) será um number ou string no JS, converter se necessário.
+      const processedData = data.map((item: UC) => ({
+        ...item,
+        faturas_count: Number(item.faturas_count),
       }));
+      setUcs(processedData || []);
 
-      setUcs(processedData);
     } catch (error) {
       console.error('Erro ao carregar unidades consumidoras:', error);
       toast({
@@ -81,11 +76,11 @@ export default function UCsList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   useEffect(() => {
     loadUCs();
-  }, [user]);
+  }, [user, loadUCs]);
 
   const handleDelete = async (uc: UC) => {
     if (!uc || !uc.id) return;
@@ -93,7 +88,7 @@ export default function UCsList() {
     try {
       setLoading(true);
       
-      // Check if UC has associated faturas
+      // Check if UC has associated faturas (usa o faturas_count que já temos)
       if (uc.faturas_count > 0) {
         throw new Error('Esta unidade consumidora possui faturas associadas. Remova as faturas primeiro.');
       }
@@ -103,18 +98,18 @@ export default function UCsList() {
         .from('unidades_consumidoras')
         .delete()
         .eq('id', uc.id)
-        .eq('user_id', user?.id);
+        .eq('proprietario_user_id', user?.id); // Manter a verificação de user_id para segurança na deleção
 
       if (error) throw error;
 
       // Reload UCs list and show success message
       toast({
         title: 'Unidade Consumidora removida',
-        description: `A UC ${uc.identificador} foi removida com sucesso.`,
+        description: `A UC ${uc.nome_identificador || uc.numero_uc} foi removida com sucesso.`,
       });
       
       setUcToDelete(null);
-      loadUCs();
+      loadUCs(); // Recarregar dados após a exclusão
     } catch (error) {
       console.error('Erro ao excluir unidade consumidora:', error);
       toast({
@@ -131,9 +126,10 @@ export default function UCsList() {
   const filteredUCs = ucs.filter((uc) => {
     const searchLower = searchQuery.toLowerCase();
     return (
-      uc.identificador.toLowerCase().includes(searchLower) ||
-      uc.endereco.toLowerCase().includes(searchLower) ||
-      uc.distribuidora.toLowerCase().includes(searchLower) ||
+      (uc.nome_identificador && uc.nome_identificador.toLowerCase().includes(searchLower)) ||
+      (uc.numero_uc && uc.numero_uc.toLowerCase().includes(searchLower)) ||
+      (uc.endereco && uc.endereco.toLowerCase().includes(searchLower)) ||
+      (uc.distribuidora_nome && uc.distribuidora_nome.toLowerCase().includes(searchLower)) ||
       (uc.cliente_nome_razao_social && uc.cliente_nome_razao_social.toLowerCase().includes(searchLower))
     );
   });
@@ -205,6 +201,7 @@ export default function UCsList() {
             <TableHeader>
               <TableRow>
                 <TableHead>Identificador</TableHead>
+                <TableHead>Número UC</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Endereço</TableHead>
                 <TableHead>Distribuidora</TableHead>
@@ -218,12 +215,13 @@ export default function UCsList() {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
                       <Zap className="h-4 w-4 text-primary" />
-                      {uc.identificador}
+                      {uc.nome_identificador || '-'}
                     </div>
                   </TableCell>
+                  <TableCell>{uc.numero_uc || '-'}</TableCell>
                   <TableCell>{uc.cliente_nome_razao_social || '-'}</TableCell>
-                  <TableCell>{uc.endereco}</TableCell>
-                  <TableCell>{uc.distribuidora}</TableCell>
+                  <TableCell>{uc.endereco || '-'}</TableCell>
+                  <TableCell>{uc.distribuidora_nome || '-'}</TableCell>
                   <TableCell>{uc.faturas_count}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -261,7 +259,7 @@ export default function UCsList() {
             <DialogDescription>
               Tem certeza que deseja excluir a unidade consumidora{' '}
               <span className="font-medium">
-                {ucToDelete?.identificador}
+                {ucToDelete?.nome_identificador || ucToDelete?.numero_uc}
               </span>
               ? Esta ação não pode ser desfeita.
             </DialogDescription>

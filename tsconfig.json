@@ -9,6 +9,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "lib": ["DOM", "ESNext"],
     "noImplicitAny": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,

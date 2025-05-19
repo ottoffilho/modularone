@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 interface DashboardStats {
   clienteCount: number;
   ucCount: number;
-  faturaCount: number;
+  // faturaCount: number; // Comentado temporariamente
 }
 
 export default function Dashboard() {
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     clienteCount: 0,
     ucCount: 0,
-    faturaCount: 0,
+    // faturaCount: 0, // Comentado temporariamente
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function Dashboard() {
         const { count: clienteCount, error: clientesError } = await supabase
           .from('clientes')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+          .eq('proprietario_user_id', user.id);
 
         if (clientesError) throw clientesError;
 
@@ -44,22 +44,24 @@ export default function Dashboard() {
         const { count: ucCount, error: ucsError } = await supabase
           .from('unidades_consumidoras')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+          .eq('proprietario_user_id', user.id);
 
         if (ucsError) throw ucsError;
 
-        // Get faturas count
+        // Get faturas count - TEMPORARIAMENTE COMENTADO
+        /*
         const { count: faturaCount, error: faturasError } = await supabase
           .from('faturas')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+          .eq('proprietario_user_id', user.id);
 
         if (faturasError) throw faturasError;
+        */
 
         setStats({
           clienteCount: clienteCount || 0,
           ucCount: ucCount || 0,
-          faturaCount: faturaCount || 0,
+          // faturaCount: faturaCount || 0, // Comentado temporariamente
         });
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error);
@@ -101,10 +103,10 @@ export default function Dashboard() {
   }
 
   // Check if user is new (no data yet)
-  const isNewUser = stats.clienteCount === 0 && stats.ucCount === 0 && stats.faturaCount === 0;
+  const isNewUser = stats.clienteCount === 0 && stats.ucCount === 0; // Removido faturaCount da condição
 
   return (
-    <div className="space-y-8 p-4 md:p-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-800 dark:text-gray-100">Dashboard</h1>
         <p className="text-muted-foreground mt-2 text-lg">
@@ -216,28 +218,9 @@ export default function Dashboard() {
                 </Button>
               </CardFooter>
             </Card>
-
-            <Card className="shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl border border-slate-200 dark:border-slate-700 border-t-4 border-t-[#daa916]">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-300">Faturas Processadas</CardTitle>
-                <FileText className="h-5 w-5 text-[#daa916]" />
-              </CardHeader>
-              <CardContent className="px-4 pb-3">
-                <div className="text-3xl font-bold text-[#daa916]">{stats.faturaCount}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Total de faturas analisadas.
-                </p>
-              </CardContent>
-              <CardFooter className="px-4 pb-4 pt-0">
-                <Button asChild variant="outline" className="w-full justify-center text-[#daa916] border-[#daa916] hover:bg-[#daa916]/10 hover:text-[#daa916]" size="sm">
-                  <Link to="/faturas">
-                    Ver Faturas
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
           </div>
 
+          {/* Seção de Atividades Recentes (Faturas) - TEMPORARIAMENTE COMENTADA SE DEPENDER DE DADOS DE FATURAS
           <div className="mt-6">
             <h2 className="text-xl font-bold tracking-tight mb-4">Atividades Recentes</h2>
             
@@ -255,6 +238,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+          */}
         </>
       )}
     </div>

@@ -250,7 +250,7 @@ export default function PlantasSolaresList() {
         </TableCell>
       </TableRow>
     ));
-  }, [queryInfo.data, queryInfo.isLoading, queryInfo.isError, queryInfo.error, queryInfo.refetch, debouncedSearchTerm, navigate]);
+  }, [queryInfo, debouncedSearchTerm, navigate]);
 
   return (
     <AppShell 

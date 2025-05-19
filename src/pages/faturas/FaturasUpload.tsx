@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,6 +52,16 @@ const faturaSchema = z.object({
 });
 
 type FaturaFormValues = z.infer<typeof faturaSchema>;
+
+// Tipo para o dado retornado do banco
+interface UCDataFromDB {
+  id: string;
+  identificador: string;
+  endereco?: string;
+  clientes?: {
+    nome_razao_social: string | null;
+  } | null;
+}
 
 export default function FaturasUpload() {
   const location = useLocation();
@@ -117,7 +127,7 @@ export default function FaturasUpload() {
         if (error) throw error;
         
         // Format data for select options
-        const formattedUCs = data.map((uc: any) => ({
+        const formattedUCs = data.map((uc: UCDataFromDB) => ({
           id: uc.id,
           identificador: uc.identificador,
           endereco: uc.endereco,
@@ -138,7 +148,7 @@ export default function FaturasUpload() {
     };
     
     loadUCs();
-  }, [user]);
+  }, [user, toast]);
 
   const onSubmit = async (values: FaturaFormValues) => {
     if (!user) return;
@@ -157,7 +167,7 @@ export default function FaturasUpload() {
       const filePath = `${user.id}/faturas/${fileName}`;
       
       // Track upload progress with a separate listener
-      let uploadProgress = 0;
+      const uploadProgress = 0;
       
       // Upload file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage

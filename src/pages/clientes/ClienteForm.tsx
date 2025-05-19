@@ -180,9 +180,9 @@ export default function ClienteForm() {
 
       toast({ title: "CNPJ consultado!", description: "Dados carregados no formulário." });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao buscar CNPJ:', error);
-      const message = error.message || "Falha ao consultar CNPJ.";
+      const message = error instanceof Error ? error.message : "Falha ao consultar CNPJ.";
       setCnpjErrorApi(message);
       toast({ title: "Erro na Consulta", description: message, variant: "destructive" });
     } finally {
@@ -202,7 +202,7 @@ export default function ClienteForm() {
         
         const { data, error } = await supabase
           .from('clientes')
-          .select('id, nome_razao_social, dados_adicionais')
+          .select('id, nome_razao_social, tipo_pessoa, cpf, cnpj, nome_fantasia, dados_adicionais')
           .eq('id', id)
           .eq('proprietario_user_id', user.id)
           .single();
@@ -212,40 +212,42 @@ export default function ClienteForm() {
         if (!data) {
           toast({
             title: 'Cliente não encontrado',
+            description: 'O cliente que você está tentando editar não existe ou você não tem permissão para acessá-lo.',
             variant: 'destructive',
           });
           navigate('/clientes');
           return;
         }
         
-        const da = data.dados_adicionais as any || {};
+        const da = (data.dados_adicionais as Record<string, unknown>) || {};
 
         form.reset({
-          tipo: da.tipo || undefined,
+          tipo: data.tipo_pessoa || undefined,
           nome_razao_social: data.nome_razao_social || '',
-          email: da.email || '',
-          telefone: da.telefone || '',
-          cpf_cnpj: da.tipo === 'PF' ? da.cpf || '' : da.cnpj || '',
-          
-          cep: da.cep || '',
-          logradouro: da.logradouro || '',
-          numero: da.numero || '',
-          complemento: da.complemento || '',
-          bairro: da.bairro || '',
-          cidade: da.cidade || '',
-          estado: da.estado || '',
-          
-          nome_fantasia: da.nome_fantasia || '',
-          situacao_cadastral: da.situacao_cadastral || '',
-          inscricao_estadual: da.inscricao_estadual || '',
+          email: typeof da.email === 'string' ? da.email : '',
+          telefone: typeof da.telefone === 'string' ? da.telefone : '',
+          cpf_cnpj: data.tipo_pessoa === 'PF'
+            ? (data.cpf || (typeof da.cpf === 'string' ? da.cpf : '') || '')
+            : (data.cnpj || (typeof da.cnpj === 'string' ? da.cnpj : '') || ''),
+          cep: typeof da.cep === 'string' ? da.cep : '',
+          logradouro: typeof da.logradouro === 'string' ? da.logradouro : '',
+          numero: typeof da.numero === 'string' ? da.numero : '',
+          complemento: typeof da.complemento === 'string' ? da.complemento : '',
+          bairro: typeof da.bairro === 'string' ? da.bairro : '',
+          cidade: typeof da.cidade === 'string' ? da.cidade : (typeof da.municipio === 'string' ? da.municipio : ''),
+          estado: typeof da.estado === 'string' ? da.estado : (typeof da.uf === 'string' ? da.uf : ''),
+          nome_fantasia: data.nome_fantasia || (typeof da.nome_fantasia === 'string' ? da.nome_fantasia : '') || '',
+          situacao_cadastral: typeof da.situacao_cadastral === 'string' ? da.situacao_cadastral : '',
+          inscricao_estadual: typeof da.inscricao_estadual === 'string' ? da.inscricao_estadual : '',
         });
       } catch (error) {
         console.error('Erro ao carregar dados do cliente:', error);
         toast({
-          title: 'Erro',
-          description: 'Não foi possível carregar os dados do cliente.',
+          title: 'Erro ao carregar cliente',
+          description: 'Não foi possível carregar os dados do cliente para edição.',
           variant: 'destructive',
         });
+        navigate('/clientes');
       } finally {
         setInitialLoading(false);
       }
@@ -256,14 +258,14 @@ export default function ClienteForm() {
     } else {
       setInitialLoading(false);
     }
-  }, [isEditMode, id, user, navigate, toast]);
+  }, [isEditMode, id, user, navigate, toast, form]);
 
   const onSubmit = async (values: ClienteFormValues) => {
     if (!user) return;
     
     const cleanedCpfCnpj = (values.cpf_cnpj || '').replace(/\D/g, '');
 
-    const dadosSupabase: Record<string, any> = {
+    const dadosSupabase: Record<string, unknown> = {
       email: values.email,
       telefone: values.telefone,
       tipo: values.tipo,
@@ -280,7 +282,7 @@ export default function ClienteForm() {
     };
 
     // Montar o payload conforme a estrutura da tabela clientes
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
       nome_razao_social: values.nome_razao_social,
       tipo_pessoa: values.tipo, // Corrigido para o nome correto da coluna
       dados_adicionais: dadosSupabase,
