@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import NeuralNode from './NeuralNode';
 import { NeuralNodeData } from '@/lib/types';
@@ -42,7 +41,7 @@ export const Visualization: React.FC = () => {
     }));
     
     setNodes(nodesWithPositions);
-  }, []);
+  }, [nodes]);
   
   useEffect(() => {
     if (activeNode) {

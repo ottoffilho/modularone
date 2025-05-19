@@ -111,7 +111,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-primary/5 to-background">
-      <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border">
+      <div className="w-full max-w-md p-8 bg-card rounded-lg shadow-lg border border-yellow-400/60 shadow-[0_2px_12px_0_rgba(255,215,0,0.08)]">
         {message && (
           <Alert className="mb-6 bg-green-50 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-500" />

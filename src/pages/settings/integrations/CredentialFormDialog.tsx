@@ -23,12 +23,15 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
-// Mocked interfaces (ajustar conforme database.types.ts)
-interface MockedFabricante {
+// Interface para fabricantes (deve alinhar com o que é buscado do DB)
+interface FabricanteInfo {
   id: string;
   nome: string;
-  api_config_schema: {
+  api_config_schema: { // Manter a estrutura se for usada para renderizar o formulário
     fields: Array<{
       name: string;
       label: string;
@@ -39,40 +42,57 @@ interface MockedFabricante {
   };
 }
 
-interface FormValues {
+// Tipos para o formulário
+interface CredentialFormPayload { // Renomeado de FormValues para clareza do que é enviado
   fabricante_id: string;
-  credenciais: Record<string, string>;
+  credenciais_campos: Record<string, string>; // Alinhado com o payload da EF
+  id?: string; // Para atualizações
 }
 
-// Schema Zod simplificado (refinar depois)
+// Schema Zod (mantido simples, validação de credenciais_campos pode ser mais complexa se necessário)
 const credentialFormSchema = z.object({
   fabricante_id: z.string().min(1, "Selecione um fabricante."),
-  // credenciais será validado dinamicamente ou em uma etapa posterior
-  credenciais: z.record(z.string()).optional(), // Permitindo que seja opcional ou um record de strings
+  // credenciais aqui refere-se aos campos dinâmicos do formulário
+  credenciais: z.record(z.string().min(1, "Este campo é obrigatório.")).optional(),
 });
+
+// Ajustar para o tipo de dado que vem da IntegrationsPage (se for uma credencial existente)
+// e o que a Edge Function retorna/espera.
+// Por agora, mantendo genérico, mas idealmente seria um tipo importado de database.types.ts
+// ou um tipo específico para a resposta da EF.
+interface ExistingCredentialData {
+  id: string;
+  fabricante_id: string;
+  // credenciais_seguras ou similar não é usado diretamente para popular campos de senha
+  // fabricante_nome pode ser útil para a UI, se disponível
+  fabricante_nome?: string; 
+  // Os campos de credenciais em si não são repopulados (especialmente senhas)
+  // A estrutura da EF para GET /credentials retornará os campos necessários.
+}
 
 interface CredentialFormDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
-  initialData?: any | null; //  (ex: { id: string; fabricante_id: string; credenciais_seguras: Record<string, string> })
-  onSave: (data: FormValues) => void;
+  existingCredential?: ExistingCredentialData | null; // Renomeado de initialData
+  onSaveSuccess: () => void; // Renomeado de onSave e tipo alterado
 }
 
 export function CredentialFormDialog({
   isOpen,
   setIsOpen,
-  initialData,
-  onSave,
+  existingCredential, // Renomeado
+  onSaveSuccess,    // Renomeado
 }: CredentialFormDialogProps) {
-  const [fabricantes, setFabricantes] = useState<MockedFabricante[]>([]);
-  const [isLoadingFabricantes, setIsLoadingFabricantes] = useState(true);
+  const { session } = useAuth(); // Adicionado
+  const [fabricantes, setFabricantes] = useState<FabricanteInfo[]>([]);
+  const [isLoadingFabricantes, setIsLoadingFabricantes] = useState(false); // Não iniciar como true se carregado no effect
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.infer<typeof credentialFormSchema>>({ // Usar o tipo inferido do schema
     resolver: zodResolver(credentialFormSchema),
     defaultValues: {
-      fabricante_id: initialData?.fabricante_id || '',
-      credenciais: initialData?.credenciais_seguras || {},
+      fabricante_id: existingCredential?.fabricante_id || '',
+      credenciais: {}, // Campos de credenciais são dinâmicos, resetados abaixo
     },
   });
 
@@ -83,73 +103,101 @@ export function CredentialFormDialog({
     return fabricantes.find(f => f.id === selectedFabricanteId)?.api_config_schema || null;
   }, [selectedFabricanteId, fabricantes]);
 
-  // Mocked data loading para fabricantes
+  // Carregar fabricantes reais do Supabase
   useEffect(() => {
-    setIsLoadingFabricantes(true);
-    const timer = setTimeout(() => {
-      setFabricantes([
-        {
-          id: 'growatt_mock_id',
-          nome: 'Growatt (Mock)',
-          api_config_schema: {
-            fields: [
-              { name: 'username', label: 'Usuário API Growatt', type: 'text', required: true, placeholder: 'Seu usuário Growatt' },
-              { name: 'password', label: 'Senha API Growatt', type: 'password', required: true, placeholder: 'Sua senha Growatt' },
-            ],
-          },
-        },
-        {
-          id: 'saj_mock_id',
-          nome: 'SAJ (Mock)',
-          api_config_schema: {
-            fields: [
-              { name: 'api_key', label: 'SAJ API Key', type: 'password', required: true, placeholder: 'Sua chave de API SAJ' },
-            ],
-          },
-        },
-        {
-          id: 'goodwe_mock_id',
-          nome: 'GoodWe (Mock)',
-          api_config_schema: {
-            fields: [
-              { name: 'account', label: 'GoodWe Account ID', type: 'text', required: true },
-              { name: 'key', label: 'GoodWe API Key', type: 'password', required: true },
-            ],
-          },
-        },
-      ]);
-      setIsLoadingFabricantes(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (initialData) {
-      form.reset({
-        fabricante_id: initialData.fabricante_id || '',
-        // Não repopular senhas. Campos de credenciais serão reconstruídos pelo schema.
-        // Se initialData.credenciais_seguras existir, poderia ser usado para preencher campos não-senha
-        // mas a renderização dinâmica cuidará dos campos em si.
-        credenciais: {},
-      });
-    } else {
-      form.reset({ fabricante_id: '', credenciais: {} });
+    async function loadFabricantes() {
+      if (!isOpen) return; // Só carrega se o dialog estiver aberto
+      setIsLoadingFabricantes(true);
+      try {
+        const { data, error } = await supabase
+          .from('fabricantes_equipamentos')
+          .select('id, nome, api_config_schema') // api_config_schema precisa existir e ter a estrutura esperada
+          .eq('suporta_api_dados', true)
+          .order('nome');
+        
+        if (error) throw error;
+        setFabricantes(data || []);
+      } catch (error: any) {
+        console.error("Erro ao buscar fabricantes:", error);
+        toast.error("Erro ao Carregar Fabricantes", {
+          description: error.message || "Não foi possível carregar a lista de fabricantes.",
+        });
+        setFabricantes([]);
+      } finally {
+        setIsLoadingFabricantes(false);
+      }
     }
-  }, [initialData, form, isOpen]); // Adicionado isOpen para resetar ao abrir
+    loadFabricantes();
+  }, [isOpen]); // Dependência em isOpen
 
-  // Resetar campos de credenciais quando o fabricante mudar
   useEffect(() => {
-    form.setValue('credenciais', {});
-  }, [selectedFabricanteId, form]);
+    if (isOpen) { // Resetar o formulário quando abrir
+      form.reset({
+        fabricante_id: existingCredential?.fabricante_id || '',
+        credenciais: {}, // Sempre resetar credenciais para forçar re-entrada (especialmente senhas)
+      });
+    }
+  }, [existingCredential, form, isOpen]);
 
-  const onSubmit = async (data: FormValues) => {
+  // Resetar campos de credenciais quando o fabricante mudar e não for edição
+  useEffect(() => {
+    if (!existingCredential?.id) { // Só reseta se for um novo formulário
+      form.setValue('credenciais', {});
+    }
+  }, [selectedFabricanteId, form, existingCredential]);
+
+  const onSubmit = async (formData: z.infer<typeof credentialFormSchema>) => {
+    if (!session?.access_token) {
+      toast.error("Erro de Autenticação", { description: "Sessão não encontrada. Faça login novamente." });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validar campos de credenciais dinâmicos se necessário
+    if (selectedFabricanteSchema) {
+      for (const field of selectedFabricanteSchema.fields) {
+        if (field.required && !formData.credenciais?.[field.name]) {
+          form.setError(`credenciais.${field.name}` as any, { type: "manual", message: "Este campo é obrigatório." });
+          toast.error("Erro de Validação", { description: `O campo '${field.label}' é obrigatório.` });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+    }
+    
     setIsSubmitting(true);
-    console.log('Form data submitted:', data);
-    // Simular chamada de API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    onSave(data); // Chamar o callback onSave passado pela IntegrationsPage
-    setIsSubmitting(false);
-    setIsOpen(false); // Fechar o diálogo após salvar
+
+    const payload: CredentialFormPayload = {
+      fabricante_id: formData.fabricante_id,
+      credenciais_campos: formData.credenciais || {}, // Garante que é um objeto
+    };
+
+    if (existingCredential?.id) {
+      payload.id = existingCredential.id;
+    }
+    
+    try {
+      const functionResponse = await supabase.functions.invoke('manage-user-service-credentials', {
+        method: 'POST', // EF lida com POST para create/update (upsert)
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: payload,
+      });
+
+      if (functionResponse.error) {
+        throw functionResponse.error;
+      }
+
+      toast.success("Sucesso!", { description: `Credenciais para ${fabricantes.find(f=>f.id === formData.fabricante_id)?.nome || 'fabricante'} salvas.` });
+      onSaveSuccess();
+      setIsOpen(false);
+    } catch (error: any) {
+      console.error("Erro ao salvar credenciais:", error);
+      toast.error("Erro ao Salvar", {
+        description: error.message || "Não foi possível salvar as credenciais.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -159,11 +207,11 @@ export function CredentialFormDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {initialData ? 'Editar Integração' : 'Adicionar Nova Integração'}
+            {existingCredential ? 'Editar Integração' : 'Adicionar Nova Integração'}
           </DialogTitle>
           <DialogDescription>
-            {initialData 
-              ? `Editando credenciais para ${fabricantes.find(f => f.id === initialData.fabricante_id)?.nome || 'fabricante desconhecido'}.`
+            {existingCredential 
+              ? `Editando credenciais para ${fabricantes.find(f => f.id === existingCredential.fabricante_id)?.nome || existingCredential.fabricante_nome || 'fabricante desconhecido'}. As senhas não são exibidas; preencha apenas se desejar alterá-las.`
               : 'Selecione um fabricante e insira suas credenciais de API.'}
           </DialogDescription>
         </DialogHeader>
@@ -184,7 +232,7 @@ export function CredentialFormDialog({
                   <Select 
                     onValueChange={field.onChange} 
                     value={field.value} 
-                    disabled={!!initialData} // Desabilitar se estiver editando
+                    disabled={!!existingCredential} // Desabilitar se estiver editando
                   >
                     <SelectTrigger id="fabricante_id" className="mt-1">
                       <SelectValue placeholder="Selecione um fabricante" />
@@ -222,11 +270,11 @@ export function CredentialFormDialog({
                   )}
                 />
                 {/* Validação dinâmica de erro pode ser complexa aqui sem um schema Zod dinâmico completo */}
-                {/* Exemplo simples: 
+                {/* Exemplo simples: */}
                 {form.formState.errors.credenciais?.[fieldConfig.name] && (
+                  // @ts-ignore Acessando dinamicamente, o TS pode reclamar.
                   <p className="text-sm text-red-500 mt-1">{form.formState.errors.credenciais[fieldConfig.name].message}</p>
-                )} 
-                */}
+                )}
               </div>
             ))}
             

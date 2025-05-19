@@ -163,7 +163,7 @@ export default function PlantaSolarForm() {
     };
     
     fetchPlantaSolar();
-  }, [isEditMode, id, user]);
+  }, [isEditMode, id, user, form, navigate, toast]);
 
   // Função para buscar endereço pelo CEP
   const fetchAddressByCep = async (cep: string) => {

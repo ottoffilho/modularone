@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { SearchIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,7 +24,7 @@ export const Search: React.FC = () => {
       setChats([newChat]);
       setActiveChat(newChat);
     }
-  }, []);
+  }, [chats.length]);
 
   // Create a new chat
   const createNewChat = () => {

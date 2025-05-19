@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAnimateIn } from '@/lib/animations';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Heart, Lightbulb, RefreshCw, Stars, Zap } from 'lucide-react';
@@ -93,7 +92,7 @@ const WhyPage = () => {
               </div>
               <div className="mt-4 text-sm text-muted-foreground">
                 <p className="font-medium">The beginning — How did we end up creating Cortex?</p>
-                <p className="mt-2 font-medium">A letter — How can we build an extension of your mind?﻿</p>
+                <p className="mt-2 font-medium">A letter — How can we build an extension of your mind?</p>
               </div>
             </>
           }
@@ -127,7 +126,7 @@ const WhyPage = () => {
               </div>
               <div className="mt-4 text-sm text-muted-foreground">
                 <p className="font-medium">Our promise from us to you</p>
-                <p className="mt-2 font-medium">A thought from Cortex on social features﻿</p>
+                <p className="mt-2 font-medium">A thought from Cortex on social features</p>
                 <p className="mt-2 font-medium">A tool that works with your brain, not against it</p>
               </div>
             </>

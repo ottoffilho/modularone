@@ -1,0 +1,36 @@
+{
+    "lint": {
+      "files": {
+        "include": ["src/", "supabase/functions/"]
+      },
+      "rules": {
+        "tags": ["recommended"],
+        "include": [],
+        "exclude": []
+      }
+    },
+    "fmt": {
+      "files": {
+        "include": ["src/", "supabase/functions/"]
+      },
+      "options": {
+        "useTabs": false,
+        "lineWidth": 80,
+        "indentWidth": 2,
+        "singleQuote": false
+      }
+    },
+    "compilerOptions": {
+      "noImplicitAny": false,
+      "noUnusedParameters": false,
+      "noUnusedLocals": false,
+      "strictNullChecks": false,
+      "lib": ["dom", "esnext", "deno.ns", "deno.window"]
+    },
+    "imports": {
+      "@/": "./src/"
+    },
+    "unstable": [
+      "sloppy-imports"
+    ]
+  }

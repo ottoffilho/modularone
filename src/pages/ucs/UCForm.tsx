@@ -183,7 +183,7 @@ export default function UCForm() {
     };
     
     loadData();
-  }, [isEditMode, id, user, clienteIdFromQuery]);
+  }, [isEditMode, id, user, form, navigate, toast]);
 
   const onSubmit = async (values: UCFormValues) => {
     if (!user) return;

@@ -1,0 +1,226 @@
+PASSO 2.C - Conectar Frontend à Edge Function de Credenciais
+Contexto do Projeto: ModularOne - A Edge Function manage-user-integration-credentials (que vamos chamar pelo nome genérico manage-user-service-credentials no frontend para manter a abstração) está implementada e pronta para ser consumida. O frontend (Passo 2.A) possui a UI para listar e adicionar/editar credenciais, mas com lógica mockada.
+
+Tarefa Específica:
+
+Modificar CredentialFormDialog.tsx para chamar a Edge Function manage-user-service-credentials ao salvar/atualizar credenciais.
+Modificar IntegrationsPage.tsx para buscar a lista de credenciais da Edge Function e permitir a exclusão através dela.
+Garantir o tratamento adequado de loading, erros e feedback ao usuário.
+Tecnologias: React, TypeScript, Shadcn/UI, TailwindCSS, react-hook-form, zod, Supabase (supabase.functions.invoke).
+
+Arquivos a Modificar:
+
+src/pages/settings/integrations/IntegrationsPage.tsx
+src/pages/settings/integrations/CredentialFormDialog.tsx
+Arquivos de Referência:
+
+src/lib/database.types.ts: Assegurar que as interfaces locais (ou importadas) para MockCredencialServicoUsuario e MockFabricante (usadas no Passo 2.A) sejam agora substituídas ou alinhadas com os tipos reais das tabelas credenciais_servico_usuario e fabricantes_equipamentos (incluindo fabricante_nome que virá do join ou de uma busca complementar).
+Documentação do Supabase sobre supabase.functions.invoke().
+Detalhes da Implementação:
+
+1. CredentialFormDialog.tsx (Conexão com a Edge Function para Salvar/Atualizar):
+* Remover Lógica Mockada de onSubmit:
+* Substituir o console.log e a simulação de sucesso pela chamada real à Edge Function.
+* Função onSubmit (Atualizada):
+```typescript
+import { supabase } from '@/lib/supabase'; // Ajuste o caminho se necessário
+import { useAuth } from '@/contexts/AuthContext'; // Para obter o token JWT
+// ... outras importações ...
+
+    // Dentro do componente:
+    const { session } = useAuth(); // Supondo que session.access_token exista
+
+    async function onSubmit(data: z.infer<typeof credentialFormSchema>) {
+      if (!session?.access_token) {
+        toast({ title: "Erro de Autenticação", description: "Sessão não encontrada.", variant: "destructive" });
+        return;
+      }
+
+      // 'data.credenciais' é o objeto Record<string, string> com os campos dinâmicos
+      const payload = {
+        fabricante_id: data.fabricante_id,
+        credenciais_campos: data.credenciais, // Enviar o objeto com os campos de credenciais
+      };
+
+      // Determinar se é uma criação ou atualização para escolher o método HTTP e endpoint na EF
+      // A EF pode lidar com POST para criar/atualizar (upsert) ou você pode ter endpoints separados
+      // Vamos assumir que a EF com POST /credentials (sem :id) faz upsert.
+      // Se existingCredential?.id existir, você pode querer chamar um PUT/PATCH /credentials/:id
+      
+      let functionResponse;
+      try {
+        if (existingCredential?.id) {
+          // Atualização (PUT/PATCH para /credentials/:id)
+          // A EF precisa suportar um body para PUT/PATCH também
+          functionResponse = await supabase.functions.invoke('manage-user-service-credentials', {
+            // O nome da função é o nome do diretório da function.
+            // O Supabase JS Client v2 trata o path da URL e o método HTTP internamente
+            // ao especificar o 'method' e o 'body'.
+            // Para chamar um endpoint específico como /credentials/:id com PUT:
+            // A forma de invocar funções com paths e métodos específicos pode variar
+            // um pouco dependendo de como a EF está roteando internamente.
+            // Uma forma comum é passar o path e o método no corpo ou como options.
+            // Mas o mais simples é a EF 'manage-user-service-credentials' aceitar um POST
+            // que faz upsert, ou ter um payload que indica a ação.
+
+            // Assumindo que sua EF para POST /credentials lida com UPSERT ou você tem um endpoint para PUT
+            // Para simplificar, vamos assumir POST para /credentials lida com UPSERT se ID está no payload
+            // ou a EF usa um endpoint diferente para update.
+            // Se a EF `manage-user-service-credentials` tem rotas internas:
+            //   Precisamos de uma forma de dizer para a EF qual rota interna chamar.
+            //   Ex: body: { action: 'update', id: existingCredential.id, payload }
+            //   Ou, se a sua EF em /manage-user-service-credentials expõe sub-rotas via o path:
+            //   O cliente supabase.functions.invoke pode precisar ser configurado de forma diferente,
+            //   ou você pode ter múltiplas Edge Functions (menos ideal para CRUD completo).
+
+            // **A SUGESTÃO AQUI É SIMPLIFICAR:
+            // A Edge Function 'manage-user-service-credentials', quando chamada com POST,
+            // verifica se um 'id' está presente no payload. Se sim, faz UPDATE, senão INSERT.
+            const updatePayload = { ...payload, id: existingCredential.id };
+             functionResponse = await supabase.functions.invoke('manage-user-service-credentials', {
+               method: 'POST', // Ou 'PUT' se a EF suportar um endpoint /credentials/:id via PUT
+               headers: { Authorization: `Bearer ${session.access_token}` },
+               body: updatePayload,
+             });
+
+        } else {
+          // Criação (POST para /credentials)
+          functionResponse = await supabase.functions.invoke('manage-user-service-credentials', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            body: payload,
+          });
+        }
+
+        if (functionResponse.error) {
+          throw functionResponse.error;
+        }
+
+        toast({ title: "Sucesso!", description: `Credenciais para ${data.fabricante_id} salvas.` });
+        onSaveSuccess(); // Para recarregar a lista na página pai
+        setIsOpen(false); // Fechar o dialog
+      } catch (error: any) {
+        console.error("Erro ao salvar credenciais:", error);
+        toast({
+          title: "Erro ao Salvar",
+          description: error.message || "Não foi possível salvar as credenciais.",
+          variant: "destructive",
+        });
+      }
+    }
+    ```
+* **Tratamento de Erro:** Assegurar que erros da Edge Function sejam capturados e exibidos ao usuário usando `toast`.
+2. IntegrationsPage.tsx (Conexão com a Edge Function para Listar e Excluir):
+* Buscar Integrações (Substituir Mock):
+* Criar uma função WorkspaceIntegrations (chamada no useEffect inicial e após salvar/excluir).
+* Dentro de WorkspaceIntegrations:
+```typescript
+// ... (importar supabase, useAuth, toast)
+const { session } = useAuth();
+
+        async function fetchIntegrations() {
+          if (!session?.access_token) {
+            // Não pode buscar sem sessão, pode exibir toast ou tratar silenciosamente
+            return;
+          }
+          setIsLoading(true);
+          try {
+            // Chamar o endpoint GET /credentials da Edge Function
+            const { data, error } = await supabase.functions.invoke('manage-user-service-credentials', {
+              method: 'GET', // Para listar todas as credenciais do usuário
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+
+            if (error) throw error;
+
+            // O 'data' aqui deve ser um array de MockCredencialServicoUsuario (ou o tipo real)
+            // A EF deve fazer o join com fabricantes_equipamentos para incluir fabricante_nome
+            setIntegrations(data || []);
+          } catch (error: any) {
+            console.error("Erro ao buscar integrações:", error);
+            toast({
+              title: "Erro ao Buscar Integrações",
+              description: error.message || "Não foi possível carregar os dados.",
+              variant: "destructive",
+            });
+            setIntegrations([]); // Limpar em caso de erro
+          } finally {
+            setIsLoading(false);
+          }
+        }
+        // Chamar fetchIntegrations() no useEffect
+        useEffect(() => {
+          fetchIntegrations();
+        }, [session]); // Adicionar session como dependência
+        ```
+    * A `onSaveSuccess` prop do `CredentialFormDialog` deve agora chamar `WorkspaceIntegrations`.
+* **Excluir Integração:**
+    * Na ação "Excluir" do `DropdownMenu`:
+        * Chamar uma função `handleDeleteIntegration(integrationId: string)`.
+        * Dentro de `handleDeleteIntegration`:
+            * Exibir um `AlertDialog` de confirmação.
+            * Se confirmado, chamar a Edge Function para o endpoint `DELETE /credentials/:id`.
+                ```typescript
+                // ... (dentro de handleDeleteIntegration após confirmação)
+                if (!session?.access_token) { /* ... tratar erro de sessão ... */ return; }
+                try {
+                  // Para chamar DELETE /credentials/:id
+                  // A EF 'manage-user-service-credentials' precisa de uma forma de saber o ID.
+                  // Pode ser passando no body ou, idealmente, a EF pode ter sub-rotas.
+                  // Se a EF usa o path para rotear (ex: /manage-user-service-credentials/credentials/ID_DA_CREDENCIAL):
+                  // Isso não é diretamente suportado por supabase.functions.invoke de forma simples para DELETE com path param.
+                  // Alternativa: Enviar o ID no corpo do request DELETE ou como query param se a EF suportar.
+                  // Ou, a EF 'manage-user-service-credentials' aceita um POST com { action: 'delete', id: integrationId }
+                  
+                  // **ASSUMINDO QUE A EF SUPORTA DELETE COM ID NO BODY OU QUE O MÉTODO E O CORPO SÃO SUFICIENTES:**
+                  const { error } = await supabase.functions.invoke('manage-user-service-credentials', {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                    body: { id: integrationId }, // A EF precisa ler o 'id' do corpo para DELETE
+                  });
+
+                  if (error) throw error;
+
+                  toast({ title: "Sucesso", description: "Integração removida." });
+                  fetchIntegrations(); // Recarregar a lista
+                } catch (error: any) {
+                  // ... tratar erro com toast ...
+                }
+                ```
+* **Carregar Fabricantes para o `CredentialFormDialog` (Real):**
+    * O `CredentialFormDialog` precisará buscar a lista de `fabricantes_equipamentos` do Supabase (apenas os que `suporta_api_dados = true`). Essa lógica de busca pode ser adicionada dentro do `CredentialFormDialog.tsx` em seu `useEffect`.
+        ```typescript
+        // Dentro de CredentialFormDialog.tsx
+        useEffect(() => {
+          async function loadFabricantes() {
+            setIsLoadingFabricantes(true);
+            try {
+              const { data, error } = await supabase
+                .from('fabricantes_equipamentos')
+                .select('id, nome, api_config_schema')
+                .eq('suporta_api_dados', true)
+                .order('nome');
+              if (error) throw error;
+              setFabricantes(data || []);
+            } catch (error: any) {
+              // ... tratar erro com toast ...
+              setFabricantes([]);
+            } finally {
+              setIsLoadingFabricantes(false);
+            }
+          }
+          if (isOpen) { // Carregar apenas quando o dialog estiver aberto
+            loadFabricantes();
+          }
+        }, [isOpen]); // Dependência em isOpen para recarregar se necessário
+        ```
+Observações Importantes para a Edge Function manage-user-service-credentials (Revisão do seu resumo):
+
+Roteamento Interno na Edge Function: Dado que você mencionou endpoints como GET /credentials, POST /credentials, DELETE /credentials/:id, a sua Edge Function manage-user-service-credentials deve estar usando algum framework de roteamento interno (como Oak, Hono, ou roteamento manual com base em req.method e req.url ou um path enviado no corpo) para direcionar para as funções CRUD corretas. A chamada supabase.functions.invoke('function-name', { method: '...', body: ... }) envia a requisição para a raiz da função. A função precisa interpretar o method e o body (ou um path específico no body) para decidir qual operação executar.
+Sugestão de Payload para a EF: Para simplificar as chamadas do frontend, a Edge Function manage-user-service-credentials pode ser uma única função que aceita um action no body para distinguir operações além do método HTTP, ou você pode ter funções separadas se preferir (ex: list-user-service-credentials, delete-user-service-credential). No entanto, seu resumo indica que uma única EF lida com todos os métodos e paths, o que é viável com roteamento interno.
+Foco Deste Sub-Passo (2.C):
+
+Substituir toda a lógica mockada de dados e submissão no frontend pela interação real com a Edge Function manage-user-service-credentials.
+Garantir que o token de autenticação do usuário seja enviado corretamente para a Edge Function.
+Implementar o carregamento da lista de fabricantes reais no CredentialFormDialog.
+Assegurar tratamento robusto de estados de loading e erros.

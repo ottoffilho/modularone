@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -136,7 +135,7 @@ export default function UCDetails() {
     };
 
     loadUCDetails();
-  }, [id, user]);
+  }, [id, user, navigate, toast]);
 
   const handleDelete = async () => {
     if (!uc || !user) return;

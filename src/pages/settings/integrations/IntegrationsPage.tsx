@@ -57,27 +57,16 @@ interface Fabricante {
   api_config_schema: unknown;
 }
 
-interface Credencial {
-  id: string;
-  fabricante_id: string;
-  fabricante_nome: string;
-  nome_referencia: string;
-  status_validacao: string;
-  ultima_validacao_em: string;
-}
-
-// Mocked interfaces (conforme sugerido, até termos os tipos reais do database.types.ts)
-interface MockedIntegration {
-  id: string;
-  fabricanteNome: string;
-  statusValidacao: 'Válido' | 'Inválido' | 'Pendente';
-  ultimaValidacaoEm: string | null;
-}
-
-interface MockedFabricante {
-  id: string;
-  nome: string;
-  api_config_schema: any; // Detalhar isso mais tarde
+// Esta é a interface principal para as credenciais que virão da Edge Function
+interface CredencialServicoUsuario {
+  id: string; // UUID da credencial
+  fabricante_id: string; // UUID do fabricante
+  fabricante_nome: string; // Nome do fabricante (do join na EF)
+  // nome_referencia: string; // Se a EF retornar um nome customizável para a credencial
+  credenciais_campos: Record<string, string>; // Os campos de credenciais em si (para edição, podem ser mascarados ou não enviados na listagem)
+  status_validacao?: 'VALIDO' | 'INVALIDO' | 'PENDENTE' | 'EM_ANDAMENTO'; // Status da validação
+  ultima_validacao_em?: string; // Timestamp da última validação
+  // Adicionar quaisquer outros campos que a EF retorna para a listagem
 }
 
 // Interface para os valores recebidos do form
@@ -86,415 +75,238 @@ interface IntegrationFormValues {
   credenciais: Record<string, string>;
 }
 
-// Adapter para transformar os dados do form para o formato esperado pelo componente
-function adaptFormValuesToIntegration(formValues: IntegrationFormValues, fabricantes: MockedFabricante[]): MockedIntegration {
-  const fabricante = fabricantes.find(f => f.id === formValues.fabricante_id);
-  
-  return {
-    id: formValues.fabricante_id, // Usando fabricante_id como id da integração
-    fabricanteNome: fabricante?.nome || 'Desconhecido',
-    statusValidacao: 'Pendente', // Status inicial
-    ultimaValidacaoEm: new Date().toLocaleDateString()
-  };
-}
-
-// Interface para o CredentialFormDialog (placeholder)
-interface CredentialFormDialogProps {
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
-  initialData?: MockedIntegration | null;
-  onSave: (data: IntegrationFormValues) => void;
-}
-
 const IntegrationsPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedCredential, setSelectedCredential] = useState<Credencial | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [credentialToDelete, setCredentialToDelete] = useState<string | null>(null);
-  const [integrations, setIntegrations] = useState<MockedIntegration[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, session } = useAuth();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedIntegration, setSelectedIntegration] = useState<MockedIntegration | null>(null);
+  const [selectedCredential, setSelectedCredential] = useState<CredencialServicoUsuario | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [credentialToDeleteId, setCredentialToDeleteId] = useState<string | null>(null);
+  
+  const [credentialsList, setCredentialsList] = useState<CredencialServicoUsuario[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Consulta para buscar as credenciais do usuário
-  const { data: credenciais, isLoading: isCredenciaisLoading, isError, error } = useQuery({
-    queryKey: ['credenciais', user?.id],
-    queryFn: async (): Promise<Credencial[]> => {
-      if (!user) return [];
-
-      // Buscar credenciais do usuário
-      const { data: userCredentials, error } = await supabase
-        .from('credenciais_servico_usuario')
-        .select(`
-          id,
-          fabricante_id,
-          nome_referencia,
-          status_validacao,
-          ultima_validacao_em
-        `)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      // Buscar nomes dos fabricantes para cada credencial
-      const enrichedCredentials = await Promise.all(
-        userCredentials.map(async (cred) => {
-          const { data: fabricante } = await supabase
-            .from('fabricantes_equipamentos')
-            .select('nome')
-            .eq('id', cred.fabricante_id)
-            .single();
-
-          return {
-            ...cred,
-            fabricante_nome: fabricante?.nome || 'Desconhecido'
-          };
-        })
-      );
-
-      return enrichedCredentials as Credencial[];
-    },
-    enabled: !!user,
-  });
-
-  // Mutation para excluir credencial
-  const deleteCredentialMutation = useMutation({
-    mutationFn: async (credentialId: string) => {
-      const { error } = await supabase
-        .from('credenciais_servico_usuario')
-        .delete()
-        .eq('id', credentialId)
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-      return true;
-    },
-    onSuccess: () => {
-      toast.success('Credencial excluída com sucesso');
-      queryClient.invalidateQueries({ queryKey: ['credenciais'] });
-      setDeleteDialogOpen(false);
-      setCredentialToDelete(null);
-    },
-    onError: (error: unknown) => {
-      toast.error(`Erro ao excluir credencial: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      setDeleteDialogOpen(false);
-    }
-  });
-
-  // Mutation para revalidar credenciais
-  const revalidateCredentialMutation = useMutation({
-    mutationFn: async (credentialId: string) => {
-      // Em uma implementação real, você chamaria uma Edge Function para revalidar
-      // Por enquanto, apenas simularemos uma atualização de status
-      const { error } = await supabase
-        .from('credenciais_servico_usuario')
-        .update({
-          status_validacao: 'VALIDO', // Simulando validação bem-sucedida
-          ultima_validacao_em: new Date().toISOString()
-        })
-        .eq('id', credentialId)
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-      return true;
-    },
-    onSuccess: () => {
-      toast.success('Credenciais revalidadas com sucesso');
-      queryClient.invalidateQueries({ queryKey: ['credenciais'] });
-    },
-    onError: (error: unknown) => {
-      toast.error(`Erro ao revalidar credenciais: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
-  });
-
-  // Mocked data loading
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIntegrations([
-        { id: '1', fabricanteNome: 'Growatt', statusValidacao: 'Válido', ultimaValidacaoEm: new Date().toLocaleDateString() },
-        { id: '2', fabricanteNome: 'SAJ', statusValidacao: 'Pendente', ultimaValidacaoEm: null },
-        { id: '3', fabricanteNome: 'GoodWe', statusValidacao: 'Inválido', ultimaValidacaoEm: new Date(Date.now() - 86400000 * 5).toLocaleDateString() },
-      ]);
+  // Função para buscar integrações/credenciais da Edge Function
+  async function fetchIntegrations() {
+    if (!session?.access_token) {
+      // toast.info("Sessão não encontrada", { description: "Faça login para ver suas integrações." });
+      setCredentialsList([]);
       setIsLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Handlers
-  const handleOpenDialog = (credential?: Credencial) => {
-    if (credential) {
-      setSelectedCredential(credential);
-    } else {
-      setSelectedCredential(null);
+      return;
     }
-    setIsDialogOpen(true);
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<CredencialServicoUsuario[]>('manage-user-service-credentials', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw error;
+      
+      // O 'data' da EF deve ser um array de CredencialServicoUsuario
+      // incluindo fabricante_nome e outros campos relevantes para a lista.
+      setCredentialsList(data || []);
+    } catch (error: any) {
+      console.error("Erro ao buscar integrações:", error);
+      toast.error("Erro ao Buscar Integrações", {
+        description: error.message || "Não foi possível carregar os dados.",
+      });
+      setCredentialsList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (user && session) { // Garante que user e session existem antes de buscar
+      fetchIntegrations();
+    }
+  }, [user, session]); // Adicionar session como dependência
+
+  // Handler para abrir o diálogo de formulário (novo ou edição)
+  const handleOpenFormDialog = (credential?: CredencialServicoUsuario) => {
+    setSelectedCredential(credential || null);
+    setIsFormOpen(true);
   };
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
+  const handleCloseFormDialog = () => {
+    setIsFormOpen(false);
     setSelectedCredential(null);
   };
+  
+  // Handler para confirmar e chamar a exclusão via Edge Function
+  const handleDeleteIntegration = async () => {
+    if (!credentialToDeleteId || !session?.access_token) {
+      toast.error("Erro", { description: "Não foi possível identificar a credencial para exclusão ou sessão inválida." });
+      setDeleteDialogOpen(false);
+      return;
+    }
+    
+    try {
+      // A EF 'manage-user-service-credentials' espera um body: { id: integrationId } para DELETE
+      const { error: functionError } = await supabase.functions.invoke('manage-user-service-credentials', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { id: credentialToDeleteId }, 
+      });
 
-  const handleDeleteClick = (credential: Credencial) => {
-    setCredentialToDelete(credential.id);
+      if (functionError) throw functionError;
+
+      toast.success("Sucesso", { description: "Integração removida." });
+      fetchIntegrations(); // Recarregar a lista
+    } catch (error: any) {
+      console.error("Erro ao excluir integração:", error);
+      toast.error("Erro ao Excluir", {
+        description: error.message || "Não foi possível remover a integração.",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setCredentialToDeleteId(null);
+    }
+  };
+
+  // Handler para abrir o diálogo de confirmação de exclusão
+  const openDeleteConfirmDialog = (credentialId: string) => {
+    setCredentialToDeleteId(credentialId);
     setDeleteDialogOpen(true);
   };
 
-  const confirmDelete = () => {
-    if (credentialToDelete) {
-      deleteCredentialMutation.mutate(credentialToDelete);
+  // Render Status (pode precisar de ajustes com base nos valores reais de status da EF)
+  const renderStatus = (status?: 'VALIDO' | 'INVALIDO' | 'PENDENTE' | 'EM_ANDAMENTO') => {
+    switch (status) {
+      case 'VALIDO':
+        return <span className="flex items-center text-green-600"><CheckCircle className="mr-1 h-4 w-4" /> Válido</span>;
+      case 'INVALIDO':
+        return <span className="flex items-center text-red-600"><XCircle className="mr-1 h-4 w-4" /> Inválido</span>;
+      case 'PENDENTE':
+        return <span className="flex items-center text-yellow-600"><AlertCircle className="mr-1 h-4 w-4" /> Pendente</span>;
+      case 'EM_ANDAMENTO':
+        return <span className="flex items-center text-blue-600"><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Em Validação</span>;
+      default:
+        return <span className="flex items-center text-gray-500"><AlertCircle className="mr-1 h-4 w-4" /> Desconhecido</span>;
     }
   };
 
-  const handleRevalidateClick = (credentialId: string) => {
-    revalidateCredentialMutation.mutate(credentialId);
-  };
-
-  const handleAddNew = () => {
-    setSelectedIntegration(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (integration: MockedIntegration) => {
-    setSelectedIntegration(integration);
-    setIsFormOpen(true);
-  };
-
-  const handleDeleteIntegration = (integrationId: string) => {
-    // Lógica de exclusão será implementada depois
-    console.log(`Excluir integração: ${integrationId}`);
-    alert(`Simular exclusão da integração ID: ${integrationId}`);
-    // setIntegrations(prev => prev.filter(int => int.id !== integrationId)); // Exemplo de como poderia ser
-  };
-
-  // Renderizar status com ícones
-  const renderStatus = (status: string) => {
-    if (status === 'VALIDO') {
-      return (
-        <div className="flex items-center gap-2 text-green-600">
-          <CheckCircle className="w-4 h-4" />
-          <span>Válido</span>
-        </div>
-      );
-    } else if (status === 'INVALIDO') {
-      return (
-        <div className="flex items-center gap-2 text-red-600">
-          <XCircle className="w-4 h-4" />
-          <span>Inválido</span>
-        </div>
-      );
-    } else {
-      return (
-        <div className="flex items-center gap-2 text-amber-600">
-          <AlertCircle className="w-4 h-4" />
-          <span>Pendente</span>
-        </div>
-      );
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch (e) {
+      return 'Data inválida';
     }
   };
 
-  // Formatador de data
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'Nunca';
-    
-    const date = new Date(dateString);
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  if (isLoading && credentialsList.length === 0) { // Melhor condição de loading inicial
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-3 text-lg">Carregando integrações...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Integrações</h1>
-          <p className="text-muted-foreground mt-2">
-            Gerencie suas integrações com fabricantes de equipamentos e serviços externos.
-          </p>
-        </div>
-        <Button onClick={handleAddNew} className="w-full sm:w-auto">
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Nova Integração
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-2xl">
-            <PlugZap className="mr-2 h-5 w-5" />
-            Credenciais de API
-          </CardTitle>
-          <CardDescription>
-            Configure e gerencie suas credenciais para integração com APIs de fabricantes.
-          </CardDescription>
+    <div className="container mx-auto p-4 md:p-6 lg:p-8">
+      <Card className="shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl font-bold">Integrações de Serviços</CardTitle>
+            <CardDescription>
+              Gerencie suas credenciais de API para serviços externos como Growatt, SAJ, etc.
+            </CardDescription>
+          </div>
+          <Button onClick={() => handleOpenFormDialog()} className="flex items-center">
+            <PlusCircle className="mr-2 h-5 w-5" /> Adicionar Nova
+          </Button>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          {isLoading && credentialsList.length > 0 && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Atualizando...
             </div>
-          ) : isError ? (
-            <div className="p-8 text-center">
-              <p className="text-red-500 mb-2">Erro ao carregar credenciais</p>
-              <p className="text-sm text-muted-foreground">
-                {(error as Error)?.message || 'Ocorreu um erro ao carregar suas credenciais de integração.'}
-              </p>
-            </div>
-          ) : credenciais && credenciais.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fabricante</TableHead>
-                    <TableHead>Nome de Referência</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Última Validação</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {credenciais.map((credencial) => (
-                    <TableRow key={credencial.id}>
-                      <TableCell className="font-medium">{credencial.fabricante_nome}</TableCell>
-                      <TableCell>{credencial.nome_referencia}</TableCell>
-                      <TableCell>{renderStatus(credencial.status_validacao)}</TableCell>
-                      <TableCell>{formatDate(credencial.ultima_validacao_em)}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Abrir menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenDialog(credencial)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              <span>Editar</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleRevalidateClick(credencial.id)}
-                              disabled={revalidateCredentialMutation.isPending}
-                            >
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                              <span>Revalidar</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteClick(credencial)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Excluir</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          )}
+          {!isLoading && credentialsList.length === 0 ? (
+            <div className="text-center py-10">
+              <PlugZap className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+              <p className="text-xl font-semibold text-gray-700">Nenhuma integração encontrada.</p>
+              <p className="text-gray-500 mt-1">Comece adicionando uma nova integração de serviço.</p>
             </div>
           ) : (
-            <div className="p-12 text-center border-2 border-dashed rounded-md">
-              <PlugZap className="h-10 w-10 mx-auto mb-4 text-muted-foreground/60" />
-              <h3 className="text-lg font-medium mb-1">Nenhuma integração configurada</h3>
-              <p className="text-muted-foreground mb-4">
-                Para começar a usar APIs de fabricantes, adicione suas credenciais de integração.
-              </p>
-              <Button onClick={handleAddNew}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Adicionar Integração
-              </Button>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fabricante</TableHead>
+                  {/* <TableHead>Nome de Referência</TableHead> */}
+                  <TableHead>Status</TableHead>
+                  <TableHead>Última Validação</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {credentialsList.map((cred) => (
+                  <TableRow key={cred.id}>
+                    <TableCell className="font-medium">{cred.fabricante_nome}</TableCell>
+                    {/* <TableCell>{cred.nome_referencia || 'N/A'}</TableCell> */}
+                    <TableCell>{renderStatus(cred.status_validacao)}</TableCell>
+                    <TableCell>{formatDate(cred.ultima_validacao_em)}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Abrir menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleOpenFormDialog(cred)}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            // onClick={() => revalidateCredentialMutation.mutate(cred.id)}
+                            // disabled={revalidateCredentialMutation.isPending}
+                            // Ação de revalidar pode ser adicionada aqui se a EF suportar
+                            onClick={() => toast.info('Revalidação de credenciais ainda não implementada.')}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" /> Revalidar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openDeleteConfirmDialog(cred.id)} className="text-red-600 hover:!text-red-700">
+                            <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Dialog para adicionar/editar credenciais */}
-      <CredentialFormDialog
-        isOpen={isFormOpen}
-        setIsOpen={setIsFormOpen}
-        initialData={selectedIntegration ? {
-          fabricante_id: selectedIntegration.id,
-          credenciais_seguras: {} // Não temos as credenciais para edição, só os metadados
-        } : null}
-        onSave={(formValues) => {
-          console.log('Integração salva/atualizada (mock):', formValues);
-          
-          // Lista mockada de fabricantes para o adaptador
-          const mockFabricantes: MockedFabricante[] = [
-            { id: 'growatt_mock_id', nome: 'Growatt', api_config_schema: { fields: [] } },
-            { id: 'saj_mock_id', nome: 'SAJ', api_config_schema: { fields: [] } },
-            { id: 'goodwe_mock_id', nome: 'GoodWe', api_config_schema: { fields: [] } }
-          ];
-          
-          setIsLoading(true);
-          const timer = setTimeout(() => {
-            setIntegrations(prevIntegrations => {
-              // Verificar se a integração já existe pelo fabricante_id
-              const existingIndex = prevIntegrations.findIndex(int => int.id === formValues.fabricante_id);
-              
-              if (existingIndex > -1) {
-                // Atualiza o item existente
-                const updatedIntegrations = [...prevIntegrations];
-                const adaptedData = adaptFormValuesToIntegration(formValues, mockFabricantes);
-                
-                updatedIntegrations[existingIndex] = {
-                  ...updatedIntegrations[existingIndex],
-                  fabricanteNome: adaptedData.fabricanteNome,
-                  statusValidacao: 'Válido', // Assumindo que edição implica em validação
-                  ultimaValidacaoEm: new Date().toLocaleDateString()
-                };
-                return updatedIntegrations;
-              } else {
-                // Adiciona novo item
-                const newIntegration = adaptFormValuesToIntegration(formValues, mockFabricantes);
-                return [...prevIntegrations, newIntegration];
-              }
-            });
-            setIsLoading(false);
-          }, 500);
-          return () => clearTimeout(timer);
-        }}
-      />
+      {isFormOpen && (
+        <CredentialFormDialog
+          isOpen={isFormOpen}
+          setIsOpen={setIsFormOpen} // Passar setIsFormOpen para fechar o dialog
+          existingCredential={selectedCredential}
+          onSaveSuccess={() => {
+            handleCloseFormDialog(); // Fechar o dialogo
+            fetchIntegrations();     // Recarregar a lista
+          }}
+        />
+      )}
 
-      {/* Dialog de confirmação de exclusão */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta credencial de integração?
-              Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir esta integração? Esta ação não pode ser desfeita e removerá permanentemente as credenciais associadas.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteCredentialMutation.isPending}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                confirmDelete();
-              }}
-              disabled={deleteCredentialMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteCredentialMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                'Sim, excluir'
-              )}
+            <AlertDialogCancel onClick={() => setCredentialToDeleteId(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteIntegration} className="bg-red-600 hover:bg-red-700">
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
