@@ -8,6 +8,7 @@ import {
   Upload, 
   Settings,
   X,
+  SunMedium,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,7 +24,8 @@ interface NavItemProps {
 }
 
 const NavItem = ({ to, icon, label, isDesktopCollapsed, isActive, iconColor }: NavItemProps) => {
-  const coloredIcon = React.cloneElement(icon, {
+  const cloneElementFn = React.cloneElement;
+  const coloredIcon = cloneElementFn(icon, {
     color: isActive ? 'currentColor' : iconColor,
     className: cn(icon.props.className, 'h-5 w-5')
   });
@@ -84,11 +86,12 @@ const Sidebar = ({
   );
   
   const navItems = [
-    { to: "/dashboard", icon: <LayoutDashboard />, label: "Dashboard", color: "#3B82F6" },
-    { to: "/clientes", icon: <Users />, label: "Clientes", color: "#22C55E" },
-    { to: "/ucs", icon: <Zap />, label: "Unidades Consumidoras", color: "#F59E0B" },
-    { to: "/faturas", icon: <Upload />, label: "Faturas", color: "#6366F1" },
-    { to: "/configuracoes", icon: <Settings />, label: "Configurações", color: "#6B7280" },
+    { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} />, color: 'text-blue-500' },
+    { to: '/clientes', label: 'Clientes', icon: <Users size={20} />, color: 'text-indigo-500' },
+    { to: '/ucs', label: 'Unidades Consumidoras', icon: <Zap size={20} />, color: 'text-purple-500' },
+    { to: '/plantas-solares', label: 'Plantas Solares', icon: <SunMedium size={20} />, color: 'text-amber-500' },
+    { to: '/faturas/upload', label: 'Upload de Faturas', icon: <Upload size={20} />, color: 'text-green-500' },
+    { to: '/configuracoes', label: 'Configurações', icon: <Settings size={20} />, color: 'text-gray-500' },
   ];
 
   return (
