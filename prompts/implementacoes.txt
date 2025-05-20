@@ -1,47 +1,48 @@
-Preciso de assistência para expandir e refinar o formulário de criação e edição de Unidades Consumidoras (UCs) no frontend React/TypeScript.
-
-**Arquivo Principal a ser Modificado:**
-`src/pages/ucs/UCForm.tsx`
-
-**Contexto:**
-O formulário já utiliza `react-hook-form`, Zod para validação, e TanStack Query (`useQuery` para buscar dados da UC para edição e `useMutation` para criar/atualizar). No entanto, atualmente ele cobre apenas alguns campos. O objetivo é estendê-lo para incluir todos os campos relevantes da tabela `unidades_consumidoras` e refinar a lógica de manipulação de dados.
-
-**Tarefas Detalhadas:**
-
-1.  **Expandir Schema Zod (`ucSchema`):**
-    * Modificar o `ucSchema` existente no arquivo para incluir validações para todos os campos da tabela `unidades_consumidoras` (conforme definido em `supabase/migrations/000_initial_schema.sql`).
-    * Campos a serem considerados (lista não exaustiva, verificar schema completo): `cliente_id` (uuid, obrigatório), `planta_solar_id` (uuid, opcional/nulo), `identificador` (texto, obrigatório), `tipo_uc` (enum), `cep` (texto, formato regex), `logradouro`, `numero`, `complemento`, `bairro`, `municipio`, `uf` (enum), `latitude` (numérico, opcional/nulo), `longitude` (numérico, opcional/nulo), `status_uc` (enum, default 'Ativa'), `data_conexao` (data, opcional/nulo), `grupo_tarifario` (enum, opcional/nulo), `subgrupo_tarifario`, `modalidade_tarifaria`, `classe_consumo`, `subclasse_consumo`, `codigo_tarifa`, `demanda_contratada_ponta_kw` (numérico, opcional/nulo), `demanda_contratada_fora_ponta_kw` (numérico, opcional/nulo), `tensao_nominal_v` (inteiro, opcional/nulo), `tipo_medicao`, `numero_medidor`, `dados_adicionais_uc` (jsonb, opcional/nulo).
-    * Definir e utilizar Zod enums para campos como `tipo_uc`, `status_uc`, `grupo_tarifario`, `uf`. Exemplo: `const TipoUCEnum = z.enum(['Residencial', 'Comercial', ...]);`
-    * Utilizar `z.coerce.number()` para campos numéricos que vêm de inputs de texto, ou `z.number()` com transformação na submissão.
-    * Para datas (`data_conexao`), usar `z.date()` e prever conversão para string 'YYYY-MM-DD' na submissão.
-    * Usar `.nullable().optional()` conforme apropriado para campos não obrigatórios.
-
-2.  **Atualizar Tipos TypeScript:**
-    * Garantir que o tipo para os valores do formulário (`UCFormValuesFromZod`) seja inferido do `ucSchema` expandido: `type UCFormValuesFromZod = z.infer<typeof ucSchema>;`
-    * Referenciar os tipos do Supabase (`Database['public']['Tables']['unidades_consumidoras']['Insert']` e `Update`) ao preparar os dados para as mutações.
-
-3.  **Adicionar Campos ao JSX do Formulário:**
-    * Para cada novo campo do schema Zod, adicionar o respectivo `FormField` no JSX do formulário, utilizando os componentes apropriados da biblioteca Shadcn/UI (`Input`, `Select`, `DatePicker` da Shadcn com `Calendar`, `Checkbox`, `Textarea` para `dados_adicionais_uc` se for JSON string).
-    * **`cliente_id` e `planta_solar_id`:** Inicialmente, podem ser `Input` para o UUID. (Melhoria futura: `Select` com busca).
-    * **Campos Enum (`tipo_uc`, `uf`, `status_uc`, `grupo_tarifario`):** Implementar usando o componente `Select` da Shadcn/UI, populado com as opções dos enums definidos.
-    * **`data_conexao`:** Utilizar o `DatePicker` da Shadcn/UI (composto por `Popover` e `Calendar`). O valor no estado do formulário deve ser um objeto `Date`.
-    * **Campos Numéricos (`latitude`, `longitude`, `demanda_contratada*`, `tensao_nominal_v`):** Usar `<Input type="number" />`. Tratar a conversão para `number` ou `null` (se vazio) na lógica do formulário ou na submissão.
-    * **CEP:** Adicionar máscara ou validação de formato visual, se possível, além da validação Zod.
-
-4.  **Refinar Lógica de Manipulação de Dados:**
-    * **Carregamento para Edição (`useEffect` com `ucData`):**
-        * Ao popular o formulário com `form.reset(formData)`, garantir que os dados vindos do backend (`ucData`) sejam transformados para os tipos esperados pelo formulário.
-        * Especificamente, converter strings de data (ex: `ucData.data_conexao`) para objetos `Date` para o `DatePicker`.
-        * Converter valores numéricos (que podem vir como string ou number do DB via JSON) para `number` para os inputs numéricos.
-    * **Submissão do Formulário (`onSubmit` function):**
-        * Assegurar que todos os campos do `UCFormValuesFromZod` sejam incluídos no objeto `submissionData`.
-        * Converter o objeto `Date` de `data_conexao` para uma string no formato `YYYY-MM-DD` antes de enviar para a Edge Function.
-        * Para campos numéricos opcionais, se o valor do formulário for uma string vazia ou `undefined`, converter para `null` antes da submissão.
-        * Garantir que o payload final para `createUCMutation.mutateAsync` e `updateUCMutation.mutateAsync` corresponda aos tipos `Insert` e `Update` da tabela `unidades_consumidoras` do Supabase.
-
-5.  **Manter Padrões:**
-    * Continuar utilizando a estrutura existente com `react-hook-form`, `FormField`, `FormControl`, etc.
-    * Assegurar que as chamadas às Edge Functions (`criar-unidade-consumidora`, `atualizar-unidade-consumidora`) estejam corretas.
-    * Utilizar o sistema de `toast` para feedback ao usuário.
-
-Por favor, ajude-me a modificar o arquivo `src/pages/ucs/UCForm.tsx` para implementar essas expansões e refinamentos, fornecendo os snippets de código necessários para o schema Zod, exemplos de `FormField` para os novos tipos de campo (especialmente Selects e DatePicker), e os ajustes nas funções `onSubmit` e no `useEffect` de carregamento de dados.
+O reprocessamento do arquivo PlantaSolarForm.tsx foi concluído e, desta vez, todas as seções, incluindo os novos campos JSX, foram corretamente aplicadas.
+O formulário agora está mais completo, com os novos campos agrupados em um card separado "Informações sobre o Sistema e Equipamentos" para melhor organização. Os componentes Select para fabricantes e empresa instaladora contêm dados fictícios e um comentário "TODO", como planejado, pois a busca de dados reais para eles dependerá da finalização das respectivas tabelas fabricantes_equipamentos e da tabela de empresas instaladoras.
+Resumo das alterações em PlantaSolarForm.tsx:
+Schema Zod (plantaSolarSchema):
+nome alterado para nome_identificador.
+potencia_instalada_dc_kwp alterado para potencia_pico_kwp.
+data_conexao_rede alterado para data_instalacao.
+Adicionados: apelido, tipo_sistema, potencia_inversor_kw, fabricante_inversor_id, modelo_inversor, numero_serie_inversor, fabricante_modulos_id, modelo_modulos, numero_serie_modulos, quantidade_modulos, empresa_instaladora_id. Todos os novos campos são opcionais/nuláveis, conforme solicitado.
+Valores Padrão (defaultValues): Atualizados para refletir as mudanças no schema e incluir valores padrão (principalmente null) para os novos campos.
+Campos JSX do Formulário:
+Novos componentes FormField adicionados para todos os novos campos do schema, utilizando <Input />, <Select />, e <Textarea /> (para numero_serie_modulos) conforme apropriado.
+Estes estão agrupados em um novo card "Informações sobre o Sistema e Equipamentos".
+Campos existentes no JSX foram renomeados para corresponder às alterações do schema (ex: nome para nome_identificador).
+Selects para tipo_sistema, fabricante_inversor_id, fabricante_modulos_id, e empresa_instaladora_id foram implementados. Os três últimos têm opções fictícias por enquanto.
+Lógica de Submissão (onSubmit):
+O objeto dataToSubmit agora mapeia corretamente todos os valores do formulário (antigos e novos) para os nomes de coluna correspondentes (e potencialmente renomeados) no banco de dados.
+Modo de Criação: Define proprietario_user_id: user.id (anteriormente user_id), integracao_ativa: false, e credencial_id: null.
+Modo de Atualização: Atualiza todos os campos enviados em dataToSubmit e referencia corretamente proprietario_user_id na cláusula .eq().
+Carregamento de Dados no Modo de Edição (useEffect):
+A chamada form.reset() agora inclui todos os novos campos, mapeando-os a partir do objeto data buscado (ex: data.nome_identificador, data.apelido, etc.).
+Utiliza corretamente data.data_instalacao (renomeado).
+Referencia corretamente proprietario_user_id ao buscar os dados da planta.
+O formulário agora deve suportar o cadastro manual completo de plantas solares, conforme solicitado.
+Estratégia de Testes e Validação
+Testes Unitários:
+Verificar se o plantaSolarSchema valida corretamente entradas válidas e inválidas para todos os campos novos e modificados.
+Testar o mapeamento de dados da função onSubmit para cenários de criação e atualização, garantindo que integracao_ativa e credencial_id sejam definidos corretamente na criação.
+Testes de Integração:
+Testar a submissão completa do formulário (criação e atualização) contra uma instância de teste do Supabase para garantir que os dados sejam salvos e recuperados corretamente com todos os novos campos e colunas renomeadas.
+Verificar se a busca de dados no modo de edição preenche todos os campos do formulário corretamente.
+Testes Manuais e Critérios de Aceite:
+Criar manualmente uma nova planta solar, preenchendo todos os campos, e verificar se ela é salva corretamente no banco de dados.
+Editar uma planta solar existente, modificar todos os campos, e verificar se as atualizações são salvas.
+Verificar se a busca de CEP ainda funciona corretamente.
+Verificar se todos os menus suspensos (selects) são populados (mesmo com dados fictícios por enquanto) e permitem a seleção.
+Confirmar que as mensagens de validação aparecem corretamente para todos os campos.
+Considerações
+Trade-offs técnicos:
+As chamadas diretas ao SDK do Supabase no formulário são mais simples por agora. Refatorar para Edge Functions (criar-planta-solar, atualizar-planta-solar) centralizaria a lógica e poderia melhorar a segurança/validação de dados no backend, mas adiciona complexidade. Isso pode ser um passo futuro.
+Alternativas descartadas:
+A refatoração imediata para Edge Functions foi adiada para manter a alteração atual focada no formulário e no schema.
+Riscos potenciais e plano de mitigação/rollback:
+Problemas na Migração: Se a migração do banco de dados tivesse mais problemas, precisaria ser corrigida. A versão atual (v2) é mais robusta. O rollback envolveria reverter as alterações do schema, se necessário.
+Bugs no Formulário: Testes completos (conforme descrito acima) são necessários para identificar quaisquer problemas na lógica do formulário ou na interface do usuário.
+Impacto na documentação e necessidade de atualização:
+A documentação interna de desenvolvimento referente ao schema da tabela plantas_solares deve ser atualizada.
+Se houver documentação para o usuário sobre como cadastrar plantas, ela precisará ser atualizada.
+Isso conclui as modificações solicitadas para o arquivo PlantaSolarForm.tsx e a tabela plantas_solares. Você precisará implementar a busca de dados para os componentes Select de fabricantes e empresas instaladoras assim que as respectivas tabelas e fontes de dados estiverem finalizadas.
