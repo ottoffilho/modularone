@@ -40,7 +40,8 @@ import {
 
 // Schema para validação do formulário
 const plantaSolarSchema = z.object({
-  nome: z.string().min(3, "O nome da planta solar é obrigatório e deve ter no mínimo 3 caracteres."),
+  nome_identificador: z.string().min(3, "O nome da planta solar é obrigatório e deve ter no mínimo 3 caracteres."),
+  apelido: z.string().optional().nullable(),
   identificacao_concessionaria: z.string().optional().nullable(),
   endereco_cep: z.string().regex(/^\d{5}-\d{3}$/, "CEP inválido").optional().nullable(),
   endereco_logradouro: z.string().optional().nullable(),
@@ -56,15 +57,30 @@ const plantaSolarSchema = z.object({
     (val) => (typeof val === 'string' ? String(val).replace(',', '.') : val),
     z.coerce.number().min(-180, "Longitude inválida").max(180, "Longitude inválida").optional().nullable()
   ),
-  potencia_instalada_dc_kwp: z.preprocess(
+  potencia_pico_kwp: z.preprocess(
     (val) => (typeof val === 'string' ? String(val).replace(',', '.') : val),
     z.coerce.number().positive("A potência instalada deve ser um número positivo.")
   ),
-  data_conexao_rede: z.date().optional().nullable(),
+  data_instalacao: z.date().optional().nullable(),
   status_planta: z.enum(['ATIVA', 'INATIVA', 'MANUTENCAO', 'PLANEJAMENTO'], { 
     required_error: "Selecione o status da planta" 
   }).default('ATIVA'),
   observacoes: z.string().optional().nullable(),
+  tipo_sistema: z.enum(['ON_GRID', 'OFF_GRID', 'HIBRIDO'], { 
+    required_error: "Selecione o tipo de sistema" 
+  }).optional().nullable(),
+  potencia_inversor_kw: z.preprocess(
+    (val) => String(val || '').replace(',', '.'), 
+    z.coerce.number().positive("Deve ser positivo").optional().nullable()
+  ),
+  fabricante_inversor_id: z.string().uuid("ID de fabricante inválido").optional().nullable(),
+  modelo_inversor: z.string().optional().nullable(),
+  numero_serie_inversor: z.string().optional().nullable(),
+  fabricante_modulos_id: z.string().uuid("ID de fabricante inválido").optional().nullable(),
+  modelo_modulos: z.string().optional().nullable(),
+  numero_serie_modulos: z.string().optional().nullable(),
+  quantidade_modulos: z.coerce.number().int().positive("Deve ser inteiro positivo").optional().nullable(),
+  empresa_instaladora_id: z.string().uuid("ID de empresa inválido").optional().nullable(),
 });
 
 // Tipo derivado do schema
@@ -85,7 +101,8 @@ export default function PlantaSolarForm() {
   const form = useForm<PlantaSolarFormValues>({
     resolver: zodResolver(plantaSolarSchema),
     defaultValues: {
-      nome: '',
+      nome_identificador: '',
+      apelido: null,
       identificacao_concessionaria: null,
       endereco_cep: null,
       endereco_logradouro: null,
@@ -95,10 +112,20 @@ export default function PlantaSolarForm() {
       endereco_estado: null,
       latitude: null,
       longitude: null,
-      potencia_instalada_dc_kwp: undefined,
-      data_conexao_rede: null,
+      potencia_pico_kwp: undefined,
+      data_instalacao: null,
       status_planta: 'ATIVA',
       observacoes: null,
+      tipo_sistema: null,
+      potencia_inversor_kw: null,
+      fabricante_inversor_id: null,
+      modelo_inversor: null,
+      numero_serie_inversor: null,
+      fabricante_modulos_id: null,
+      modelo_modulos: null,
+      numero_serie_modulos: null,
+      quantidade_modulos: null,
+      empresa_instaladora_id: null,
     },
   });
 
@@ -114,7 +141,7 @@ export default function PlantaSolarForm() {
           .from('plantas_solares')
           .select('*')
           .eq('id', id)
-          .eq('user_id', user.id)
+          .eq('proprietario_user_id', user.id)
           .single();
           
         if (error) throw error;
@@ -130,11 +157,12 @@ export default function PlantaSolarForm() {
         }
         
         // Parse date string to Date object if available
-        const dataConexao = data.data_conexao_rede ? new Date(data.data_conexao_rede) : null;
+        const dataInstalacao = data.data_instalacao ? new Date(data.data_instalacao) : null;
         
         // Set form values
         form.reset({
-          nome: data.nome || '',
+          nome_identificador: data.nome_identificador || '',
+          apelido: data.apelido,
           identificacao_concessionaria: data.identificacao_concessionaria,
           endereco_cep: data.endereco_cep,
           endereco_logradouro: data.endereco_logradouro,
@@ -144,10 +172,20 @@ export default function PlantaSolarForm() {
           endereco_estado: data.endereco_estado,
           latitude: data.latitude,
           longitude: data.longitude,
-          potencia_instalada_dc_kwp: data.potencia_instalada_dc_kwp,
-          data_conexao_rede: dataConexao,
+          potencia_pico_kwp: data.potencia_pico_kwp,
+          data_instalacao: dataInstalacao,
           status_planta: data.status_planta || 'ATIVA',
           observacoes: data.observacoes,
+          tipo_sistema: data.tipo_sistema,
+          potencia_inversor_kw: data.potencia_inversor_kw,
+          fabricante_inversor_id: data.fabricante_inversor_id,
+          modelo_inversor: data.modelo_inversor,
+          numero_serie_inversor: data.numero_serie_inversor,
+          fabricante_modulos_id: data.fabricante_modulos_id,
+          modelo_modulos: data.modelo_modulos,
+          numero_serie_modulos: data.numero_serie_modulos,
+          quantidade_modulos: data.quantidade_modulos,
+          empresa_instaladora_id: data.empresa_instaladora_id,
         });
       } catch (error) {
         console.error('Erro ao carregar planta solar:', error);
@@ -215,29 +253,45 @@ export default function PlantaSolarForm() {
     try {
       setLoading(true);
       
+      // Prepare data object with correct database column names
+      const dataToSubmit = {
+        nome_identificador: values.nome_identificador,
+        apelido: values.apelido,
+        identificacao_concessionaria: values.identificacao_concessionaria,
+        endereco_cep: values.endereco_cep,
+        endereco_logradouro: values.endereco_logradouro,
+        endereco_numero: values.endereco_numero,
+        endereco_bairro: values.endereco_bairro,
+        endereco_cidade: values.endereco_cidade,
+        endereco_estado: values.endereco_estado,
+        latitude: values.latitude,
+        longitude: values.longitude,
+        potencia_pico_kwp: values.potencia_pico_kwp,
+        data_instalacao: values.data_instalacao,
+        status_planta: values.status_planta,
+        observacoes: values.observacoes,
+        tipo_sistema: values.tipo_sistema,
+        potencia_inversor_kw: values.potencia_inversor_kw,
+        fabricante_inversor_id: values.fabricante_inversor_id,
+        modelo_inversor: values.modelo_inversor,
+        numero_serie_inversor: values.numero_serie_inversor,
+        fabricante_modulos_id: values.fabricante_modulos_id,
+        modelo_modulos: values.modelo_modulos,
+        numero_serie_modulos: values.numero_serie_modulos,
+        quantidade_modulos: values.quantidade_modulos,
+        empresa_instaladora_id: values.empresa_instaladora_id,
+      };
+
       if (isEditMode) {
         // Update planta solar
         const { error } = await supabase
           .from('plantas_solares')
           .update({
-            nome: values.nome,
-            identificacao_concessionaria: values.identificacao_concessionaria,
-            endereco_cep: values.endereco_cep,
-            endereco_logradouro: values.endereco_logradouro,
-            endereco_numero: values.endereco_numero,
-            endereco_bairro: values.endereco_bairro,
-            endereco_cidade: values.endereco_cidade,
-            endereco_estado: values.endereco_estado,
-            latitude: values.latitude,
-            longitude: values.longitude,
-            potencia_instalada_dc_kwp: values.potencia_instalada_dc_kwp,
-            data_conexao_rede: values.data_conexao_rede,
-            status_planta: values.status_planta,
-            observacoes: values.observacoes,
+            ...dataToSubmit,
             updated_at: new Date().toISOString(),
           })
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('proprietario_user_id', user.id);
           
         if (error) throw error;
         
@@ -249,24 +303,12 @@ export default function PlantaSolarForm() {
         // Create new planta solar
         const { error } = await supabase
           .from('plantas_solares')
-          .insert({
-            nome: values.nome,
-            identificacao_concessionaria: values.identificacao_concessionaria,
-            endereco_cep: values.endereco_cep,
-            endereco_logradouro: values.endereco_logradouro,
-            endereco_numero: values.endereco_numero,
-            endereco_bairro: values.endereco_bairro,
-            endereco_cidade: values.endereco_cidade,
-            endereco_estado: values.endereco_estado,
-            latitude: values.latitude,
-            longitude: values.longitude,
-            potencia_instalada_dc_kwp: values.potencia_instalada_dc_kwp,
-            data_conexao_rede: values.data_conexao_rede,
-            status_planta: values.status_planta,
-            observacoes: values.observacoes,
-            user_id: user.id,
-            created_at: new Date().toISOString(),
-          });
+          .insert([{
+            ...dataToSubmit,
+            proprietario_user_id: user.id,
+            integracao_ativa: false,
+            credencial_id: null,
+          }]);
           
         if (error) throw error;
         
@@ -332,12 +374,26 @@ export default function PlantaSolarForm() {
                   {/* Nome da Planta */}
                   <FormField
                     control={form.control}
-                    name="nome"
+                    name="nome_identificador"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Nome da Planta *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Ex: Usina Solar ABC" {...field} />
+                          <Input placeholder="Ex: Usina Solar ABC" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="apelido"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Apelido</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Solar Principal" {...field} value={field.value ?? ''} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -395,7 +451,7 @@ export default function PlantaSolarForm() {
                   {/* Potência Instalada */}
                   <FormField
                     control={form.control}
-                    name="potencia_instalada_dc_kwp"
+                    name="potencia_pico_kwp"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Potência Instalada (kWp) *</FormLabel>
@@ -415,7 +471,7 @@ export default function PlantaSolarForm() {
                   {/* Data de Conexão */}
                   <FormField
                     control={form.control}
-                    name="data_conexao_rede"
+                    name="data_instalacao"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Data de Conexão à Rede</FormLabel>
@@ -707,6 +763,201 @@ export default function PlantaSolarForm() {
           </CardFooter>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Informações sobre o Sistema e Equipamentos</CardTitle>
+          <CardDescription>
+            Informações sobre o sistema e equipamentos da planta solar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="tipo_sistema"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Sistema</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="ON_GRID">On-Grid (Conectado à Rede)</SelectItem>
+                      <SelectItem value="OFF_GRID">Off-Grid (Isolado)</SelectItem>
+                      <SelectItem value="HIBRIDO">Híbrido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="potencia_inversor_kw"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Potência do Inversor (kW)</FormLabel>
+                  <FormControl>
+                    <Input type="number" step="0.01" placeholder="Ex: 5" {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="fabricante_inversor_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fabricante do Inversor</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o fabricante" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {/* TODO: Popular com dados de fabricantes_equipamentos */}
+                      <SelectItem value="dummy-inv-1">Fabricante Inversor A (Dummy)</SelectItem>
+                      <SelectItem value="dummy-inv-2">Fabricante Inversor B (Dummy)</SelectItem>
+                      <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="modelo_inversor"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Modelo do Inversor</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: SUN-5K-G" {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <FormField
+            control={form.control}
+            name="numero_serie_inversor"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Número de Série do Inversor</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ex: 12345ABC" {...field} value={field.value ?? ''} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <hr className="my-6" />
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="fabricante_modulos_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fabricante dos Módulos</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o fabricante" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {/* TODO: Popular com dados de fabricantes_equipamentos */}
+                      <SelectItem value="dummy-mod-1">Fabricante Módulo X (Dummy)</SelectItem>
+                      <SelectItem value="dummy-mod-2">Fabricante Módulo Y (Dummy)</SelectItem>
+                      <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="modelo_modulos"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Modelo dos Módulos</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: CS3W-450MS" {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="quantidade_modulos"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantidade de Módulos</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Ex: 10" {...field} value={field.value ?? ''} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+                control={form.control}
+                name="numero_serie_modulos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Números de Série dos Módulos</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Liste os números de série, um por linha ou separados por vírgula" {...field} value={field.value ?? ''} />
+                    </FormControl>
+                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+          </div>
+          
+          <hr className="my-6" />
+
+          <FormField
+            control={form.control}
+            name="empresa_instaladora_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Empresa Instaladora</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a empresa" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {/* TODO: Popular com dados da tabela de empresas/clientes */}
+                    <SelectItem value="dummy-emp-1">Instaladora XPTO (Dummy)</SelectItem>
+                    <SelectItem value={null as any}>Nenhuma/Não Informada</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
