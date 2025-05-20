@@ -74,3 +74,100 @@ O erro "permission_denied" (código 10011) da API Growatt pode ocorrer por vári
 - **Diagnósticos claros**: Mensagens de erro mais precisas facilitam a solução de problemas
 - **Estrutura padronizada**: Nomenclatura consistente em todo o sistema
 - **Validação em tempo real**: Verificação de credenciais durante o cadastro melhora a experiência do usuário
+
+---
+
+# Resumo de Implementação: Correção do Formulário de Unidades Consumidoras
+
+## Problemas Identificados
+- Erro ao cadastrar UCs: `A <Select.Item /> must have a value prop that is not an empty string`
+- Warning no console: ``value` prop on `textarea` should not be null`
+- Comportamento instável: `Select is changing from uncontrolled to controlled`
+
+## Alterações Implementadas
+
+### 1. Correção dos SelectItem com valor vazio
+- Substituição de valores vazios (`""`) por identificadores especiais (`__SELECT__`, `NONE`)
+- Implementação de filtros para garantir que apenas itens com IDs válidos sejam renderizados
+- Melhoria na consistência entre valores padrão e valores exibidos
+
+### 2. Correção do textarea com valor null
+- Garantia de que campos textarea sempre recebam string vazia (`""`) em vez de null
+- Inicialização correta dos campos de texto no `defaultValues`
+- Tratamento robusto para valores null/undefined em todos os inputs
+
+### 3. Correção dos Selects não controlados
+- Padronização de todos os selects para uso como componentes controlados
+- Definição de valores padrão consistentes
+- Implementação de validação para garantir seleção de opções válidas antes da submissão
+
+### 4. Melhorias no processamento do formulário
+- Tratamento específico para os valores especiais (`__SELECT__`, `NONE`) antes do envio ao backend
+- Validação robusta com mensagens de erro específicas por campo
+- Melhor tratamento para o campo de dados_adicionais_uc em formato JSON
+
+## Resultados dos Testes
+- Formulário funciona sem erros no console
+- Comportamento consistente entre os campos select
+- Validação adequada antes do envio ao backend
+
+## Próximos Passos Recomendados
+
+1. **Melhorias adicionais no formulário**:
+   - Considerar a implementação de validação em tempo real
+   - Adicionar formatação automática para campos específicos (CEP, números)
+   - Implementar autocomplete para campos de endereço (via API de CEP)
+
+2. **Melhorias de UX**:
+   - Adicionar confirmação visual quando campos obrigatórios forem preenchidos
+   - Melhorar o feedback visual para erros de validação
+   - Implementar salvamento automático de rascunho para evitar perda de dados
+
+3. **Testes de usabilidade**:
+   - Verificar desempenho em diferentes dispositivos e navegadores
+   - Testar a acessibilidade do formulário
+   - Coletar feedback dos usuários sobre a experiência de preenchimento
+
+## Benefícios das Alterações
+- **Maior robustez**: Formulário mais resistente a valores inesperados ou inválidos
+- **Melhor experiência do usuário**: Eliminação de erros de console e comportamento mais previsível
+- **Código mais manutenível**: Padronização no tratamento de valores e validação
+- **Qualidade de dados**: Melhor garantia da integridade dos dados enviados ao backend
+
+---
+
+# Resumo de Implementação: Melhoria na Exibição de Dados de Cliente
+
+## Problemas Identificados
+- Ausência do campo "Papel do Cliente" (tipo_cliente) na página de detalhes do cliente
+- Erro ao carregar dados do cliente: `column clientes.telefone does not exist`
+- Inconsistência na exibição de dados entre a lista de clientes e a página de detalhes
+
+## Alterações Implementadas
+
+### 1. Adição do Campo Papel do Cliente
+- Atualização da interface `Cliente` para incluir o tipo_cliente (PROPRIETARIO_USINA, CONSUMIDOR_BENEFICIARIO, etc.)
+- Implementação de badges coloridas para melhor visualização do papel:
+  - Proprietário (violeta) para PROPRIETARIO_USINA
+  - Beneficiário (âmbar) para CONSUMIDOR_BENEFICIARIO
+  - Parceiro (azul) para EMPRESA_PARCEIRA
+  - Outro (cinza) para OUTRO
+
+### 2. Correção do Erro de Coluna
+- Correção da query ao Supabase, substituindo `telefone` por `telefone_principal` (nome correto da coluna)
+- Ajuste no mapeamento de dados para garantir consistência com a estrutura do banco de dados
+
+### 3. Melhoria na Priorização de Dados
+- Implementação de lógica para priorizar dados das colunas dedicadas antes de recorrer ao objeto JSON dados_adicionais
+- Garantia de fallback apropriado quando dados não estão disponíveis nas colunas principais
+
+## Resultados dos Testes
+- Página de detalhes exibe corretamente o papel do cliente com o badge apropriado
+- Consulta ao banco de dados funciona sem erros
+- Dados são exibidos de forma consistente entre todas as páginas
+
+## Benefícios das Alterações
+- **Melhor visualização de dados**: O papel do cliente agora é facilmente identificável com badges coloridas
+- **Consistência visual**: Mesmo estilo de exibição entre a lista de clientes e a página de detalhes
+- **Robustez**: Correção de erros de banco de dados e melhoria na lógica de fallback de dados
+- **Experiência do usuário**: Informações mais completas e bem organizadas na visualização de detalhes

@@ -43,6 +43,7 @@ interface Cliente {
   email: string;
   telefone: string;
   tipo: 'PF' | 'PJ';
+  tipo_cliente?: 'PROPRIETARIO_USINA' | 'CONSUMIDOR_BENEFICIARIO' | 'EMPRESA_PARCEIRA' | 'OUTRO';
   dados_adicionais: {
     email?: string;
     telefone?: string;
@@ -81,7 +82,7 @@ export default function ClienteDetails() {
 
         const { data: clienteData, error: clienteError } = await supabase
           .from('clientes')
-          .select('id, nome_razao_social, dados_adicionais, created_at, updated_at')
+          .select('id, nome_razao_social, dados_adicionais, created_at, updated_at, tipo_cliente, email, telefone_principal')
           .eq('id', id)
           .eq('proprietario_user_id', user.id)
           .single();
@@ -98,16 +99,18 @@ export default function ClienteDetails() {
           return;
         }
 
-        const emailFromDados = clienteData.dados_adicionais?.email || '';
-        const telefoneFromDados = clienteData.dados_adicionais?.telefone || '';
+        // Preferir dados das colunas dedicadas, com fallback para dados_adicionais
+        const emailFromDB = clienteData.email || clienteData.dados_adicionais?.email || '';
+        const telefoneFromDB = clienteData.telefone_principal || clienteData.dados_adicionais?.telefone || '';
         const tipoFromDados = clienteData.dados_adicionais?.tipo || 'PF';
 
         setCliente({
           id: clienteData.id,
           nome_razao_social: clienteData.nome_razao_social,
-          email: emailFromDados,
-          telefone: telefoneFromDados,
+          email: emailFromDB,
+          telefone: telefoneFromDB,
           tipo: tipoFromDados as 'PF' | 'PJ',
+          tipo_cliente: clienteData.tipo_cliente,
           dados_adicionais: clienteData.dados_adicionais,
           created_at: clienteData.created_at,
           updated_at: clienteData.updated_at,
@@ -286,6 +289,33 @@ export default function ClienteDetails() {
                 }`}>
                   {cliente.tipo === 'PF' ? 'Pessoa Física' : 'Pessoa Jurídica'}
                 </span>
+              </dd>
+            </div>
+
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Papel do Cliente</dt>
+              <dd className="mt-1 text-foreground">
+                {cliente.tipo_cliente ? (
+                  <span className={`px-3 py-1 text-xs font-medium tracking-wider rounded-full ${
+                    cliente.tipo_cliente === 'PROPRIETARIO_USINA' 
+                      ? 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:border-violet-700'
+                      : cliente.tipo_cliente === 'CONSUMIDOR_BENEFICIARIO'
+                        ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700'
+                        : cliente.tipo_cliente === 'EMPRESA_PARCEIRA'
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700'
+                          : 'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-900/50 dark:text-gray-300 dark:border-gray-700'
+                  }`}>
+                    {cliente.tipo_cliente === 'PROPRIETARIO_USINA' 
+                      ? 'Proprietário' 
+                      : cliente.tipo_cliente === 'CONSUMIDOR_BENEFICIARIO' 
+                        ? 'Beneficiário' 
+                        : cliente.tipo_cliente === 'EMPRESA_PARCEIRA' 
+                          ? 'Parceiro' 
+                          : 'Outro'}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/50">Não definido</span>
+                )}
               </dd>
             </div>
 
