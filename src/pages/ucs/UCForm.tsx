@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, MapPin } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -188,6 +188,8 @@ export default function UCForm() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditMode);
   const [loadedUcTimestamps, setLoadedUcTimestamps] = useState<{ created_at?: string; updated_at?: string } | null>(null);
+  const [isCepLoading, setIsCepLoading] = useState(false);
+  const [cepErrorApi, setCepErrorApi] = useState<string | null>(null);
 
   // Estados para selects dinâmicos
   const [distribuidoras, setDistribuidoras] = useState<Distribuidora[]>([]);
@@ -225,6 +227,72 @@ export default function UCForm() {
   });
 
   const perfilUcSelecionado = form.watch("perfil_uc");
+  const cepValue = form.watch('endereco_cep');
+
+  // Função para buscar CEP
+  const handleBuscaCep = async () => {
+    const currentCepValue = form.getValues('endereco_cep');
+    if (!currentCepValue) return;
+
+    const cleanedCep = currentCepValue.replace(/\D/g, '');
+    if (cleanedCep.length !== 8) {
+      toast({ 
+        title: "CEP Inválido", 
+        description: "Por favor, insira um CEP com 8 dígitos.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsCepLoading(true);
+    setCepErrorApi(null);
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanedCep}`);
+      const data = await response.json();
+
+      if (!response.ok || data.type === 'service_error' || data.name === 'NotFoundError') {
+        const errorMessage = data.message || (data.errors && data.errors[0]?.message) || 'CEP não encontrado ou erro na API.';
+        throw new Error(errorMessage);
+      }
+      
+      form.setValue('endereco_logradouro', data.street || '', { shouldValidate: true });
+      form.setValue('endereco_bairro', data.neighborhood || '', { shouldValidate: true });
+      form.setValue('endereco_cidade', data.city || '', { shouldValidate: true });
+      form.setValue('endereco_estado', data.state || '', { shouldValidate: true });
+      
+      setTimeout(() => {
+        const numeroInput = document.querySelector('input[name="endereco_numero"]') as HTMLInputElement;
+        if (numeroInput) {
+          numeroInput.focus();
+        }
+      }, 100);
+
+      toast({ 
+        title: "CEP encontrado!", 
+        description: "Endereço preenchido automaticamente.",
+      });
+
+    } catch (error: unknown) {
+      console.error('Erro ao buscar CEP:', error);
+      const message = error instanceof Error ? error.message : "Falha ao consultar CEP.";
+      setCepErrorApi(message);
+      toast({ 
+        title: "Erro na Consulta de CEP", 
+        description: message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsCepLoading(false);
+    }
+  };
+
+  // Efeito para buscar CEP quando o campo perder o foco e tiver 8 dígitos
+  useEffect(() => {
+    const cleanedCep = cepValue?.replace(/\D/g, '');
+    if (cleanedCep && cleanedCep.length === 8 && form.getFieldState('endereco_cep').isDirty) {
+      // handleBuscaCep(); // Descomentar se quiser busca automática ao sair do campo CEP
+    }
+  }, [cepValue, form]);
 
   // Efeito para buscar dados da UC e Contrato (se aplicável) em modo de edição
   useEffect(() => {
@@ -798,22 +866,36 @@ export default function UCForm() {
                         render={({ field }) => (
                           <FormItem className="md:col-span-1">
                             <FormLabel>CEP</FormLabel>
-                            <div className="flex gap-2">
+                            <div className="flex items-center gap-2">
                               <FormControl>
                                 <Input 
                                   placeholder="00000-000" 
                                   {...field} 
                                   value={field.value || ""} 
                                   onChange={(e) => {
-                                    const cep = e.target.value.replace(/\D/g, '');
-                                    if (cep.length <= 8) {
-                                      field.onChange(cep.replace(/^(\d{5})(\d{3})$/, '$1-$2'));
+                                    // Formatar CEP enquanto digita
+                                    let value = e.target.value.replace(/\D/g, '');
+                                    if (value.length > 5) {
+                                      value = value.slice(0, 5) + '-' + value.slice(5, 8);
                                     }
-                                  }} 
+                                    if (value.length <= 9) { // Limitar a 00000-000
+                                       field.onChange(value);
+                                    }
+                                  }}
                                 />
                               </FormControl>
-                              {/* <Button type="button" variant="outline" size="sm" onClick={() => buscarCep(field.value)}>Buscar</Button> */} 
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={handleBuscaCep}
+                                disabled={isCepLoading || !field.value || field.value.replace(/\D/g, '').length !== 8}
+                                className="flex-shrink-0"
+                              >
+                                {isCepLoading ? <Spinner size="sm" /> : <MapPin className="h-4 w-4" />}
+                              </Button>
                             </div>
+                            {cepErrorApi && <p className="text-sm font-medium text-destructive mt-1">{cepErrorApi}</p>}
                             <FormMessage />
                           </FormItem>
                         )}

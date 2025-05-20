@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarIcon, ArrowLeft, Save } from 'lucide-react';
+import { CalendarIcon, ArrowLeft, Save, MapPin } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -93,6 +93,7 @@ export default function PlantaSolarForm() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditMode);
   const [isCepLoading, setIsCepLoading] = useState(false);
+  const [cepErrorApi, setCepErrorApi] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -128,6 +129,9 @@ export default function PlantaSolarForm() {
       empresa_instaladora_id: null,
     },
   });
+
+  // Adicionado para acompanhar mudanças no CEP
+  const cepValue = form.watch('endereco_cep');
 
   // Busca os dados da planta solar a ser editada
   useEffect(() => {
@@ -203,48 +207,78 @@ export default function PlantaSolarForm() {
     fetchPlantaSolar();
   }, [isEditMode, id, user, form, navigate, toast]);
 
-  // Função para buscar endereço pelo CEP
+  // Função para buscar endereço pelo CEP (atualizada)
   const fetchAddressByCep = async (cep: string) => {
-    if (!cep || !cep.match(/^\d{5}-\d{3}$/)) return;
+    if (!cep) return;
+    
+    // Limpar formatação para ter apenas números
+    const cleanedCep = cep.replace(/\D/g, '');
+    if (cleanedCep.length !== 8) {
+      toast({ 
+        title: "CEP Inválido", 
+        description: "Por favor, insira um CEP com 8 dígitos.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setCepErrorApi(null);
+    setIsCepLoading(true);
     
     try {
-      setIsCepLoading(true);
-      
-      const response = await fetch(`https://viacep.com.br/ws/${cep.replace('-', '')}/json/`);
+      // Mudar para BrasilAPI como nas outras implementações
+      const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanedCep}`);
       const data = await response.json();
       
-      if (data.erro) {
-        toast({
-          title: 'CEP não encontrado',
-          description: 'Não foi possível encontrar o endereço para o CEP informado.',
-          variant: 'destructive',
-        });
-        return;
+      if (!response.ok || data.type === 'service_error' || data.name === 'NotFoundError') {
+        const errorMessage = data.message || (data.errors && data.errors[0]?.message) || 'CEP não encontrado ou erro na API.';
+        throw new Error(errorMessage);
       }
       
-      form.setValue('endereco_logradouro', data.logradouro);
-      form.setValue('endereco_bairro', data.bairro);
-      form.setValue('endereco_cidade', data.localidade);
-      form.setValue('endereco_estado', data.uf);
-    } catch (error) {
+      form.setValue('endereco_logradouro', data.street || '', { shouldValidate: true });
+      form.setValue('endereco_bairro', data.neighborhood || '', { shouldValidate: true });
+      form.setValue('endereco_cidade', data.city || '', { shouldValidate: true });
+      form.setValue('endereco_estado', data.state || '', { shouldValidate: true });
+      
+      // Focar no campo número após preenchimento
+      setTimeout(() => {
+        const numeroInput = document.querySelector('input[name="endereco_numero"]') as HTMLInputElement;
+        if (numeroInput) numeroInput.focus();
+      }, 100);
+      
+      toast({ 
+        title: "CEP encontrado!", 
+        description: "Endereço preenchido automaticamente.",
+      });
+    } catch (error: unknown) {
       console.error('Erro ao buscar CEP:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível consultar o CEP.',
-        variant: 'destructive',
+      const message = error instanceof Error ? error.message : "Falha ao consultar CEP.";
+      setCepErrorApi(message);
+      toast({ 
+        title: "Erro na Consulta de CEP", 
+        description: message, 
+        variant: "destructive" 
       });
     } finally {
       setIsCepLoading(false);
     }
   };
 
-  // Handler para mudança de CEP
-  const handleCepChange = (e: React.FocusEvent<HTMLInputElement>) => {
-    const cep = e.target.value;
+  // Handler para mudança de CEP (agora como alias para fetch)
+  const handleCepChange = () => {
+    const cep = form.getValues('endereco_cep');
     if (cep) {
       fetchAddressByCep(cep);
     }
   };
+  
+  // Efeito para buscar CEP quando for alterado e tiver 8 dígitos
+  useEffect(() => {
+    const cleanedCep = cepValue?.replace(/\D/g, '');
+    if (cleanedCep && cleanedCep.length === 8 && form.getFieldState('endereco_cep').isDirty) {
+      fetchAddressByCep(cepValue);
+    }
+  }, [cepValue, form]);
 
   // Submissão do formulário
   const onSubmit = async (values: PlantaSolarFormValues) => {
@@ -358,18 +392,18 @@ export default function PlantaSolarForm() {
           <Spinner size="lg" />
         </div>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">
-              {isEditMode ? 'Dados da Planta Solar' : 'Dados da Nova Planta Solar'}
-            </CardTitle>
-            <CardDescription>
-              Preencha os campos abaixo com os dados da planta solar. Campos com * são obrigatórios.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">
+                  {isEditMode ? 'Dados da Planta Solar' : 'Dados da Nova Planta Solar'}
+                </CardTitle>
+                <CardDescription>
+                  Preencha os campos abaixo com os dados da planta solar. Campos com * são obrigatórios.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Nome da Planta */}
                   <FormField
@@ -584,19 +618,37 @@ export default function PlantaSolarForm() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>CEP</FormLabel>
-                            <div className="flex gap-2">
+                            <div className="flex items-center gap-2">
                               <FormControl>
                                 <Input 
                                   placeholder="00000-000"
                                   {...field}
                                   value={field.value || ''}
-                                  onChange={(e) => field.onChange(e.target.value || null)}
-                                  onBlur={handleCepChange}
+                                  onChange={(e) => {
+                                    // Formatar CEP enquanto digita
+                                    let value = e.target.value.replace(/\D/g, '');
+                                    if (value.length > 5) {
+                                      value = value.slice(0, 5) + '-' + value.slice(5, 8);
+                                    }
+                                    if (value.length <= 9) { // Limitar a 00000-000
+                                      field.onChange(value);
+                                    }
+                                  }}
                                   disabled={isCepLoading}
                                 />
                               </FormControl>
-                              {isCepLoading && <Spinner size="sm" className="mt-3" />}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={handleCepChange}
+                                disabled={isCepLoading || !field.value || field.value.replace(/\D/g, '').length !== 8}
+                                className="flex-shrink-0"
+                              >
+                                {isCepLoading ? <Spinner size="sm" /> : <MapPin className="h-4 w-4" />}
+                              </Button>
                             </div>
+                            {cepErrorApi && <p className="text-sm font-medium text-destructive mt-1">{cepErrorApi}</p>}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -735,229 +787,229 @@ export default function PlantaSolarForm() {
                     </FormItem>
                   )}
                 />
-                
-                <div className="flex justify-end">
-                  <Button 
-                    type="submit" 
-                    disabled={loading}
-                    className="min-w-[120px]"
-                  >
-                    {loading ? (
-                      <>
-                        <Spinner className="mr-2" /> Salvando...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" /> Salvar
-                      </>
-                    )}
-                  </Button>
+              </CardContent>
+              <CardFooter className="flex justify-between border-t pt-5 text-sm text-muted-foreground">
+                <div>
+                  {isEditMode && `Última atualização: ${new Date().toLocaleDateString()}`}
                 </div>
-              </form>
-            </Form>
-          </CardContent>
-          <CardFooter className="flex justify-between border-t pt-5 text-sm text-muted-foreground">
-            <div>
-              {isEditMode && `Última atualização: ${new Date().toLocaleDateString()}`}
-            </div>
-          </CardFooter>
-        </Card>
-      )}
+              </CardFooter>
+            </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Informações sobre o Sistema e Equipamentos</CardTitle>
-          <CardDescription>
-            Informações sobre o sistema e equipamentos da planta solar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="tipo_sistema"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Sistema</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ON_GRID">On-Grid (Conectado à Rede)</SelectItem>
-                      <SelectItem value="OFF_GRID">Off-Grid (Isolado)</SelectItem>
-                      <SelectItem value="HIBRIDO">Híbrido</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="potencia_inversor_kw"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Potência do Inversor (kW)</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" placeholder="Ex: 5" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Informações sobre o Sistema e Equipamentos</CardTitle>
+                <CardDescription>
+                  Informações sobre o sistema e equipamentos da planta solar.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="tipo_sistema"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Sistema</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ON_GRID">On-Grid (Conectado à Rede)</SelectItem>
+                            <SelectItem value="OFF_GRID">Off-Grid (Isolado)</SelectItem>
+                            <SelectItem value="HIBRIDO">Híbrido</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="potencia_inversor_kw"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Potência do Inversor (kW)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="Ex: 5" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="fabricante_inversor_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fabricante do Inversor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o fabricante" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {/* TODO: Popular com dados de fabricantes_equipamentos */}
-                      <SelectItem value="dummy-inv-1">Fabricante Inversor A (Dummy)</SelectItem>
-                      <SelectItem value="dummy-inv-2">Fabricante Inversor B (Dummy)</SelectItem>
-                      <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="modelo_inversor"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Modelo do Inversor</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: SUN-5K-G" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
-            control={form.control}
-            name="numero_serie_inversor"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Número de Série do Inversor</FormLabel>
-                <FormControl>
-                  <Input placeholder="Ex: 12345ABC" {...field} value={field.value ?? ''} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <hr className="my-6" />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="fabricante_inversor_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fabricante do Inversor</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o fabricante" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {/* TODO: Popular com dados de fabricantes_equipamentos */}
+                            <SelectItem value="dummy-inv-1">Fabricante Inversor A (Dummy)</SelectItem>
+                            <SelectItem value="dummy-inv-2">Fabricante Inversor B (Dummy)</SelectItem>
+                            <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="modelo_inversor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Modelo do Inversor</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: SUN-5K-G" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="numero_serie_inversor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Número de Série do Inversor</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: 12345ABC" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <hr className="my-6" />
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="fabricante_modulos_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fabricante dos Módulos</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o fabricante" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {/* TODO: Popular com dados de fabricantes_equipamentos */}
-                      <SelectItem value="dummy-mod-1">Fabricante Módulo X (Dummy)</SelectItem>
-                      <SelectItem value="dummy-mod-2">Fabricante Módulo Y (Dummy)</SelectItem>
-                      <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="modelo_modulos"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Modelo dos Módulos</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: CS3W-450MS" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="fabricante_modulos_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fabricante dos Módulos</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o fabricante" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {/* TODO: Popular com dados de fabricantes_equipamentos */}
+                            <SelectItem value="dummy-mod-1">Fabricante Módulo X (Dummy)</SelectItem>
+                            <SelectItem value="dummy-mod-2">Fabricante Módulo Y (Dummy)</SelectItem>
+                            <SelectItem value={null as any}>Nenhum/Não Informado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="modelo_modulos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Modelo dos Módulos</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: CS3W-450MS" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="quantidade_modulos"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantidade de Módulos</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="Ex: 10" {...field} value={field.value ?? ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-                control={form.control}
-                name="numero_serie_modulos"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Números de Série dos Módulos</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Liste os números de série, um por linha ou separados por vírgula" {...field} value={field.value ?? ''} />
-                    </FormControl>
-                     <FormMessage />
-                  </FormItem>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="quantidade_modulos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quantidade de Módulos</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="Ex: 10" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="numero_serie_modulos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Números de Série dos Módulos</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Liste os números de série, um por linha ou separados por vírgula" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                
+                <hr className="my-6" />
+
+                <FormField
+                  control={form.control}
+                  name="empresa_instaladora_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Empresa Instaladora</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a empresa" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {/* TODO: Popular com dados da tabela de empresas/clientes */}
+                          <SelectItem value="dummy-emp-1">Instaladora XPTO (Dummy)</SelectItem>
+                          <SelectItem value={null as any}>Nenhuma/Não Informada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+            
+            <div className="flex justify-end">
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="min-w-[120px]"
+              >
+                {loading ? (
+                  <>
+                    <Spinner className="mr-2" /> Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" /> Salvar
+                  </>
                 )}
-              />
-          </div>
-          
-          <hr className="my-6" />
-
-          <FormField
-            control={form.control}
-            name="empresa_instaladora_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Empresa Instaladora</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value ?? undefined} value={field.value ?? undefined}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a empresa" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {/* TODO: Popular com dados da tabela de empresas/clientes */}
-                    <SelectItem value="dummy-emp-1">Instaladora XPTO (Dummy)</SelectItem>
-                    <SelectItem value={null as any}>Nenhuma/Não Informada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </CardContent>
-      </Card>
+              </Button>
+            </div>
+          </form>
+        </Form>
+      )}
     </div>
   );
 }
