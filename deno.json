@@ -30,7 +30,11 @@
     "imports": {
       "@/": "./src/"
     },
+    "nodeModulesDir": "auto",
     "unstable": [
       "sloppy-imports"
     ]
+    
   }
+
+  

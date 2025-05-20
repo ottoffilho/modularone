@@ -3,10 +3,6 @@ description: Diretrizes Técnicas para Interação com IA no ModularOne
 globs: "**/*"
 alwaysApply: true
 version: 2.1.1
-priority: 1000
-contact: "equipe-tecnica@modularone.com.br"
----
-
 # 🔍 Análise de Código (AST Level)
 
 ## Fluxo de Compreensão
@@ -100,6 +96,7 @@ graph TD
   B --> E[Multi-factor Authentication]
   C --> F[Controle de Acesso Granular]
   D --> G[Sanitização de Dados]
+  D --> H[Gestão Segura de Credenciais de API]
 ```
 
 ## Checklist Crítico
@@ -159,78 +156,106 @@ graph TD
   A[Análise de Requisitos] --> B[Proposta Técnica]
   B --> C[Revisão com Dev]
   C --> D[Implementação Parcial]
-  D --> E[Testes Automatizados]
+  D --> E[Testes Automatizados (Unitários, Integração como test_growatt_integration.ts)]
   E --> F{Passou?}
   F -->|Sim| G[Implementação Completa]
   F -->|Não| H[Refatoração]
+  G --> I[Documentação Atualizada]
+  H --> D
 ```
 
 ## Implementação de Testes
 ```ts
-// Exemplo de Teste Unitário
-describe('AuthService', () => {
-  it('deve bloquear login após 3 tentativas', async () => {
-    const auth = new AuthService();
-    
-    // Tentativas falhas
-    await auth.login({usuario: 'teste', senha: 'errada1'});
-    await auth.login({usuario: 'teste', senha: 'errada2'});
-    await auth.login({usuario: 'teste', senha: 'errada3'});
+// Exemplo de Teste Unitário (AuthService - Login)
+// describe('AuthService', () => { ... }); // Mantido como exemplo de teste unitário
 
-    // Quarta tentativa
-    await expect(auth.login({usuario: 'teste', senha: 'correta'}))
-      .rejects.toThrow('Conta bloqueada temporariamente');
+// Exemplo de Teste de Integração (API Growatt - Pseudocódigo)
+/**
+ * O script 'supabase/scripts/test_growatt_integration.ts' serve como um exemplo prático.
+ * Ele utiliza Deno e as bibliotecas Supabase para:
+ * 1. Carregar variáveis de ambiente (Supabase URL, Anon Key, credenciais Growatt de teste).
+ * 2. Simular a lógica de obtenção e hash de senha da Edge Function.
+ * 3. Chamar diretamente a API da Growatt com as credenciais processadas.
+ * 4. Validar a resposta da API (e.g., verificar se o login foi bem-sucedido e se plantas são listadas).
+ * Este script permite testar a integração com a API Growatt independentemente do fluxo completo da aplicação.
+ */
+describe('GrowattAPIIntegration', () => {
+  it('deve autenticar e listar plantas com sucesso usando credenciais de teste', async () => {
+    // Lógica similar à encontrada em test_growatt_integration.ts
+    // 1. Obter username/password de teste.
+    // 2. Calcular o hash MD5 da senha (como feito na Edge Function).
+    // 3. Montar a requisição para a API Growatt.
+    // 4. Realizar a chamada à API.
+    // 5. Assertar que a resposta indica sucesso e contém os dados esperados.
+    // Exemplo: expect(response.error_code).toBe(0);
   });
 });
 ```
 
 ## Checklist de Qualidade de Testes
-- [ ] Cobrir casos de sucesso e falha
-- [ ] Testar valores limite
-- [ ] Mockar dependências externas
-- [ ] Garantir velocidade de execução
-- [ ] Atualizar snapshots regularmente
+- [ ] Cobrir casos de sucesso e falha (incluindo códigos de erro esperados de APIs externas).
+- [ ] Testar valores limite e entradas inválidas.
+- [ ] Mockar dependências externas quando o foco é a lógica unitária; para testes de integração, usar ambientes de teste ou contas de sandbox quando possível.
+- [ ] Garantir velocidade de execução (especialmente para testes unitários; testes de integração podem ser mais lentos mas devem ser gerenciáveis).
 
 ## Padrões de Teste
 | Tipo        | Boas Práticas                      | Anti-padrões                |
-|-------------|------------------------------------|----------------------------|
+|-------------|------------------------------------|-----------------------------|
 | Unitário    | Testes isolados e rápidos          | Mockar excessivamente       |
-| Integração  | Testar fluxos completos            | Depender de dados externos |
-| E2E         | Simular interações reais           | Testes frágeis/lentos       |
+| Integração  | Testar fluxos completos entre componentes ou com sistemas externos (e.g., `test_growatt_integration.ts`) | Depender de dados externos instáveis sem mocks adequados para outros cenários; Testes excessivamente frágeis a mudanças na UI para integrações de backend. |
+| E2E         | Simular interações reais do usuário  | Testes frágeis/lentos       |
 
 # 📄 Formato de Respostas
 
 ## Template Estruturado
 ```markdown
 ## Análise do Problema
-- Contexto atual
-- Impacto estimado
-- Componentes afetados
+- Contexto atual (o que está acontecendo, onde, desde quando)
+- Impacto estimado (quantos usuários/sistemas afetados, severidade)
+- Componentes afetados (funções, tabelas, módulos específicos)
+- Causa raiz preliminar (hipóteses iniciais)
 
 ## Proposta de Solução
 ```ts
-// Exemplo de implementação
-function soluçãoOtimizada(...args) {
-  // ...
+// Exemplo de implementação da correção ou nova funcionalidade
+function solucaoOtimizada(...args) {
+  // Lógica da solução...
 }
 ```
 
+## Passos para Implementação
+1. Preparação (e.g., backup, configuração de ambiente)
+2. Alterações no código (detalhar arquivos e funções)
+3. Migrações de banco de dados (se houver)
+4. Deploy (comandos, sequência)
+5. Configurações adicionais
+
+## Estratégia de Testes e Validação
+- Testes unitários a serem adicionados/modificados.
+- Testes de integração (e.g., como validar com a API Growatt usando o script `test_growatt_integration.ts`).
+- Testes manuais e critérios de aceite.
+
 ## Considerações
-- Trade-offs técnicos
-- Alternativas descartadas
-- Riscos potenciais
+- Trade-offs técnicos (performance, complexidade, segurança)
+- Alternativas descartadas (e porquê)
+- Riscos potenciais e plano de mitigação/rollback
+- Impacto na documentação e necessidade de atualização.
+
+*Nota: O documento `docs/solucao_problema_api_growatt.md` serve como um exemplo prático da aplicação desta estrutura para documentar a resolução de um problema específico.*
 ```
 
 # 🔄 Adaptação ao Projeto
 
 ## Diretrizes de Evolução
 1. **Versionamento Semântico**  
-   `MAJOR.MINOR.PATCH` com changelog detalhado
+   `MAJOR.MINOR.PATCH` com changelog detalhado. Migrações de banco de dados seguem timestamp e nome descritivo (e.g., `<timestamp>_correct_growatt_api_schema.sql`).
 
 2. **Gestão de Dependências**  
    ```bash
    # Atualização segura
    npm update --audit --fund
+   # Manter o mínimo de dependências possível.
+   # Ex: Substituição de js-md5 pela API crypto nativa para hashing MD5.
    ```
 
 3. **Ambientes Multi-stage**  
@@ -243,15 +268,18 @@ function soluçãoOtimizada(...args) {
 # ✅ Mecanismos de Validação
 
 ## Checklist de Qualidade
-1. [ ] Documentação inline
-2. [ ] Tipagem estática
-3. [ ] Testes unitários
-4. [ ] Compatibilidade cross-browser
+1. [ ] Documentação inline (TSDoc/JSDoc para funções e lógica complexa)
+2. [ ] Tipagem estática completa e precisa com TypeScript
+3. [ ] Testes automatizados (unitários e de integração cobrindo funcionalidades chave e interações com APIs)
+4. [ ] Compatibilidade cross-browser (para componentes de frontend)
 5. [ ] Acessibilidade (WCAG 2.1)
 
 ## Indicadores de Performance
 | Métrica          | Aceitável  | Ideal     |
 |------------------|------------|-----------|
 | TTI (s)         | ≤3        | ≤1        |
+| CLS              | ≤0.1      | ≤0.05     |
+| Memória (MB)     | ≤500      | ≤200      |
+
 | CLS              | ≤0.1      | ≤0.05     |
 | Memória (MB)     | ≤500      | ≤200      |
