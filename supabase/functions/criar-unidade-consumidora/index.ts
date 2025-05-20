@@ -19,12 +19,13 @@ const unidadeConsumidoraSchema = z.object({
   endereco_bairro: z.string().min(1, "Bairro é obrigatório."),
   endereco_cidade: z.string().min(1, "Cidade é obrigatória."),
   endereco_estado: z.string().length(2, "Estado deve ter 2 caracteres."),
-  endereco_cep: z.string().regex(/^\\d{5}-?\\d{3}$/, "CEP deve estar no formato XXXXX-XXX ou XXXXXXXX."),
+  endereco_cep: z.string().regex(/^\d{5}-?\d{3}$/, "CEP deve estar no formato XXXXX-XXX ou XXXXXXXX."),
   geolocalizacao_latitude: z.number().min(-90).max(90).nullable().optional(),
   geolocalizacao_longitude: z.number().min(-180).max(180).nullable().optional(),
   tipo_de_uc: enumTipoUc,
   fonte_dados_geracao: enumFonteDadosGeracao.nullable().optional(),
   planta_solar_id: z.string().uuid("ID da planta solar deve ser um UUID válido.").nullable().optional(),
+  cliente_id: z.string().uuid("ID do cliente deve ser um UUID válido.").nullable().optional(),
   dados_adicionais: z.object({}).passthrough().nullable().optional(),
   // Campos para UCs consumidoras/beneficiárias (não usados para UC geradora do proprietário inicialmente)
   // uc_geradora_principal_id: z.string().uuid().nullable().optional(),
@@ -106,6 +107,23 @@ serve(async (req: Request) => {
       });
     }
 
+    // Se cliente_id for fornecido, verificar sua existência e se pertence ao usuário
+    if (ucData.cliente_id) {
+      const { data: cliente, error: clienteError } = await supabaseAdminClient
+        .from("clientes")
+        .select("id")
+        .eq("id", ucData.cliente_id)
+        .eq("user_id", proprietarioUserId) // Garante que o cliente pertence ao usuário autenticado
+        .maybeSingle();
+
+      if (clienteError || !cliente) {
+        return new Response(JSON.stringify({ error: "Cliente não encontrado ou não pertence ao usuário.", details: clienteError?.message }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 404, // Ou 400 se considerar um erro de validação de input
+        });
+      }
+    }
+
     // Se for UC Geradora, verificar planta_solar_id
     if (ucData.tipo_de_uc === "geradora") {
       if (!ucData.planta_solar_id) { // Double check, Zod deveria pegar isso
@@ -143,7 +161,7 @@ serve(async (req: Request) => {
 
     const insertPayload: Record<string, unknown> = {
       proprietario_user_id: proprietarioUserId,
-      cliente_id: null, // Para UC geradora do proprietário
+      cliente_id: ucData.cliente_id,
       distribuidora_id: ucData.distribuidora_id,
       numero_da_uc: ucData.numero_da_uc,
       nome_identificador: ucData.nome_identificador,

@@ -8,19 +8,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from 'sonner';
-import { PlusCircle, Search, MoreHorizontal, Eye, Edit, Trash2, Loader2, SunMedium } from 'lucide-react';
+import { PlusCircle, Search, MoreHorizontal, Eye, Edit, Trash2, Loader2, SunMedium, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { ImportPlantsDialog } from '@/components/plantas_solares/ImportPlantsDialog';
 
 // Tipo para a planta solar
 interface PlantaSolar {
   id: string;
-  nome: string;
-  potencia_instalada_dc_kwp: number;
+  nome_planta: string;
+  potencia_instalada_kwp: number;
   status_planta: string;
-  data_conexao_rede: string | null;
-  endereco_cidade: string | null;
-  endereco_estado: string | null;
+  data_instalacao: string | null;
+  cidade: string | null;
+  estado: string | null;
 }
 
 // Hook para debounce do campo de busca
@@ -46,18 +47,18 @@ const fetchPlantasSolares = async (userId: string, searchTerm: string): Promise<
     .from('plantas_solares')
     .select(`
       id,
-      nome,
-      potencia_instalada_dc_kwp,
+      nome_planta,
+      potencia_instalada_kwp,
       status_planta,
-      data_conexao_rede,
-      endereco_cidade,
-      endereco_estado
+      data_instalacao,
+      cidade,
+      estado
     `)
-    .eq('user_id', userId)
-    .order('nome');
+    .eq('proprietario_user_id', userId)
+    .order('nome_planta');
 
   if (searchTerm) {
-    query = query.ilike('nome', `%${searchTerm}%`);
+    query = query.ilike('nome_planta', `%${searchTerm}%`);
   }
 
   const { data, error } = await query;
@@ -79,7 +80,7 @@ const deletePlantaSolar = async (plantaId: string, userId: string): Promise<{ su
       .from('plantas_solares')
       .delete()
       .eq('id', plantaId)
-      .eq('user_id', userId);
+      .eq('proprietario_user_id', userId);
 
     if (error) throw error;
 
@@ -97,6 +98,7 @@ export default function PlantasSolaresList() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [plantaParaDeletar, setPlantaParaDeletar] = useState<PlantaSolar | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -140,6 +142,11 @@ export default function PlantasSolaresList() {
     if (plantaParaDeletar) {
       deleteMutation.mutate(plantaParaDeletar.id);
     }
+  };
+
+  // Função para ser chamada após a importação bem-sucedida de plantas
+  const handlePlantsImported = () => {
+    queryClient.invalidateQueries({ queryKey: ['plantas_solares', debouncedSearchTerm, user?.id] });
   };
 
   // Memo para as linhas da tabela
@@ -197,9 +204,9 @@ export default function PlantasSolaresList() {
 
     return plantas.map((planta) => (
       <TableRow key={planta.id} className="hover:bg-muted/20 transition-colors duration-150 ease-in-out data-[state=selected]:bg-primary/10">
-        <TableCell className="font-medium text-foreground py-3.5 whitespace-nowrap px-6">{planta.nome}</TableCell>
+        <TableCell className="font-medium text-foreground py-3.5 whitespace-nowrap px-6">{planta.nome_planta}</TableCell>
         <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
-          {planta.potencia_instalada_dc_kwp?.toFixed(2) || '-'} kWp
+          {planta.potencia_instalada_kwp?.toFixed(2) || '-'} kWp
         </TableCell>
         <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
           <span className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full ${
@@ -215,13 +222,13 @@ export default function PlantasSolaresList() {
           </span>
         </TableCell>
         <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
-          {planta.data_conexao_rede 
-            ? new Date(planta.data_conexao_rede).toLocaleDateString() 
+          {planta.data_instalacao 
+            ? new Date(planta.data_instalacao).toLocaleDateString() 
             : '-'}
         </TableCell>
         <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
-          {planta.endereco_cidade && planta.endereco_estado 
-            ? `${planta.endereco_cidade}/${planta.endereco_estado}`
+          {planta.cidade && planta.estado 
+            ? `${planta.cidade}/${planta.estado}`
             : '-'}
         </TableCell>
         <TableCell className="text-right py-3.5 pr-6 whitespace-nowrap sticky right-0 bg-card z-[1] group-hover:bg-muted/20 transition-colors duration-150 ease-in-out">
@@ -257,13 +264,23 @@ export default function PlantasSolaresList() {
       title="Gestão de Plantas Solares" 
       description="Visualize, adicione, edite e gerencie todas as suas plantas solares."
       headerActions={
-        <Button 
-          onClick={() => navigate('/plantas-solares/novo')} 
-          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-150 ease-in-out transform hover:scale-105 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-2"
-        >
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Nova Planta Solar
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsImportDialogOpen(true)}
+            variant="outline"
+            className="shadow-md hover:shadow-lg transition-all duration-150 ease-in-out transform hover:scale-105"
+          >
+            <UploadCloud className="mr-2 h-5 w-5" />
+            Importar Plantas
+          </Button>
+          <Button 
+            onClick={() => navigate('/plantas-solares/novo')} 
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-150 ease-in-out transform hover:scale-105 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-2"
+          >
+            <PlusCircle className="mr-2 h-5 w-5" />
+            Nova Planta Solar
+          </Button>
+        </div>
       }
     >
       <div className="w-full h-full px-2 md:px-4 py-4 flex flex-col gap-6">
@@ -290,7 +307,7 @@ export default function PlantasSolaresList() {
                   <TableHead className="py-4 px-6 text-left text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Nome da Planta</TableHead>
                   <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Potência (kWp)</TableHead>
                   <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Status</TableHead>
-                  <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Data Conexão</TableHead>
+                  <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Data Instalação</TableHead>
                   <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Localização</TableHead>
                   <TableHead className="py-4 pr-6 text-right text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap sticky right-0 bg-muted/50">Ações</TableHead>
                 </TableRow>
@@ -309,7 +326,7 @@ export default function PlantasSolaresList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a planta solar "{plantaParaDeletar?.nome}"?
+              Tem certeza que deseja excluir a planta solar "{plantaParaDeletar?.nome_planta}"?
               <br /><br />
               <strong className="text-destructive">Esta ação não pode ser desfeita.</strong>
             </AlertDialogDescription>
@@ -336,6 +353,13 @@ export default function PlantasSolaresList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Diálogo de Importação de Plantas */}
+      <ImportPlantsDialog
+        isOpen={isImportDialogOpen}
+        setIsOpen={setIsImportDialogOpen}
+        onPlantsImported={handlePlantsImported}
+      />
     </AppShell>
   );
 } 

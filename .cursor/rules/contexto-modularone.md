@@ -58,6 +58,12 @@ interface CoreEntities {
     medicoes: MedicaoEnergia[];
   };
 }
+
+// Adicionar nota sobre credenciais de serviço se relevante aqui,
+// ou garantir que esteja coberto na seção de Backend/Modelagem de Dados.
+// Exemplo: As credenciais para serviços externos como Growatt são gerenciadas
+// de forma segura e usam campos padronizados como 'username' e 'password'
+// após a recente atualização.
 ```
 
 ## 🔄 Fluxo de Processamento de Dados
@@ -70,7 +76,7 @@ sequenceDiagram
   
   Frontend->>Supabase: Upload Fatura (PDF)
   Supabase->>Supabase: Extração OCR
-  Supabase->>Growatt: Request Dados Geração
+  Supabase->>Growatt: Request Dados Geração (com credenciais corretas e hash MD5 da senha)
   Growatt->>Supabase: JSON Data
   Supabase->>SAJ: Request Histórico Consumo
   SAJ->>Supabase: CSV Data
@@ -87,7 +93,7 @@ sequenceDiagram
 | UI              | Shadcn/UI, Tailwind                  | 3.0+      |
 | State Management| TanStack Query, Zod                  | 4.29+     |
 | Backend         | Supabase, PostgreSQL                 | 2.0+      |
-| Integrações     | Growatt API, SAJ Scraper             | -         |
+| Integrações     | Growatt API (com crypto nativo), SAJ Scraper | -   |
 
 ### ⚙ Configuração de Ambiente
 ```ts
@@ -137,9 +143,20 @@ Esta arquitetura é complementada pela implementação de Row Level Security (RL
 │   │   ├── 📂 financeiro
 │   │   └── 📂 ia
 │   └── 📂 types
-└── 📂 supabase
-    ├── 📂 functions
-    └── 📂 migrations
+├── 📂 supabase
+│   ├── 📂 functions
+│   │   ├── 📄 get-external-plant-list
+│   │   └── 📄 manage-user-integration-credentials 
+│   ├── 📂 migrations
+│   │   └── 📄 YYYYMMDDHHMMSS_correct_growatt_api_schema.sql
+│   └── 📂 scripts
+│       └── 📄 test_growatt_integration.ts
+│   └── 📂 docs
+│       └── 📄 integracao_fabricantes.md
+├── 📂 docs
+│   ├── 📄 solucao_problema_api_growatt.md
+│   └── 📄 guia_implementacao_correcoes_growatt.md
+└── 📄 .env (exemplo, não versionado)
 ```
 
 ## 🚀 Estratégia de Implementação
@@ -382,6 +399,26 @@ interface DatabaseSchema {
     origem_dado: ''Fatura' | 'Sensor Growatt' | 'Sensor SAJ' | 'Manual'';
     // UNIQUE (unidade_consumidora_id, data_medicao, tipo_medicao) para evitar duplicidade
   };
+
+  // Atualizar ou adicionar detalhes sobre 'credenciais_servico_usuario' e 'fabricantes_equipamentos'/'fabricantes_api'
+  // Exemplo para credenciais_servico_usuario:
+  credenciais_servico_usuario: {
+    id: 'UUID PRIMARY KEY';
+    proprietario_user_id: 'UUID REFERENCES auth.users(id)';
+    fabricante_id: 'UUID REFERENCES fabricantes_equipamentos(id)'; // ou fabricantes_api(id)
+    credenciais_criptografadas: 'TEXT'; // Contém JSON com 'username', 'password' (Growatt)
+    // IV (Initialization Vector) para descriptografia, se aplicável
+    iv: 'TEXT';
+    // ... outros campos ...
+  };
+
+  fabricantes_equipamentos: { // ou fabricantes_api
+    id: 'UUID PRIMARY KEY';
+    nome: 'TEXT NOT NULL UNIQUE'; // Ex: "Growatt"
+    api_config_schema: 'JSONB'; // Define a estrutura esperada para as credenciais. 
+                                // Para Growatt: { "type": "object", "properties": { "username": { "type": "string" }, "password": { "type": "string" } }, "required": ["username", "password"] }
+    // ... outros campos ...
+  };
 }
 ```
 
@@ -391,20 +428,24 @@ sequenceDiagram
   participante Frontend
   participante Supabase
   participante Growatt
-  Frontend->>Supabase: Upload Fatura
-  Supabase->>Supabase: OCR & Parsing
-  Supabase->>Growatt: Request Data
-  Growatt->>Supabase: Energy Data
-  Supabase->>Supabase: Validação
-  Supabase->>Frontend: Resultado
+  Frontend->>Supabase: Solicita lista de plantas externas (e.g., Growatt)
+  Supabase->>Supabase: Edge Function (get-external-plant-list)
+  Supabase->>Supabase: Recupera e descriptografa credenciais (username, password)
+  Supabase->>Supabase: Gera hash MD5 da senha (usando crypto.subtle.digest)
+  Supabase->>Growatt: Chama API com usuário e hash da senha
+  Growatt->>Supabase: Retorna dados das plantas
+  Supabase->>Frontend: Envia lista de plantas
 ```
 
 ### 7.2. Integrações com Sistemas Externos
 
 -   **API Growatt:**
-    -   Implementar cliente API seguro (Supabase Edge Function).
-    -   Métodos para: autenticação, listar plantas, obter status de runtime, obter histórico de geração diária/mensal.
-    -   Tratamento de erros e limitações da API.
+    -   Cliente API seguro implementado como Supabase Edge Function (`get-external-plant-list`, `manage-user-integration-credentials`).
+    -   Autenticação corrigida: utiliza campos `username` e `password` (descriptografados do DB) e envia `username` junto com o hash MD5 da senha (calculado via API `crypto.subtle.digest` nativa).
+    -   Função `get-external-plant-list` busca a lista de plantas.
+    -   Função `manage-user-integration-credentials` valida as credenciais com a API Growatt.
+    -   Tratamento de erros e logging aprimorados, especialmente para o erro `10011 (error_permission_denied)`.
+    -   Migração de schema (`YYYYMMDDHHMMSS_correct_growatt_api_schema.sql`) aplicada para padronizar nomes de campos de credenciais.
 -   **Coleta de Dados SAJ:**
     -   **Reavaliar abordagem:** Selenium (usado no sistema antigo) não é ideal para uma arquitetura baseada em Supabase Functions.
     -   Considerar alternativas:
@@ -484,5 +525,6 @@ sequenceDiagram
 -   **Manutenibilidade:**
     -   Código bem documentado e organizado.
     -   Testes unitários e de integração (especialmente para Supabase Functions).
+    -   Adicionado script de teste para integração com Growatt: `supabase/scripts/test_growatt_integration.ts`.
 
 Este roteiro expandido deve fornecer uma base sólida para o desenvolvimento incremental do projeto ModularOne, combinando a interface moderna já estruturada com as funcionalidades robustas do sistema legado.

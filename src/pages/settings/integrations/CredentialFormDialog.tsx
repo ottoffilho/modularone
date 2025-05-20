@@ -110,9 +110,8 @@ export function CredentialFormDialog({
       setIsLoadingFabricantes(true);
       try {
         const { data, error } = await supabase
-          .from('fabricantes_equipamentos')
-          .select('id, nome, api_config_schema') // api_config_schema precisa existir e ter a estrutura esperada
-          .eq('suporta_api_dados', true)
+          .from('fabricantes_api')
+          .select('id, nome, api_config_schema')
           .order('nome');
         
         if (error) throw error;
@@ -177,8 +176,14 @@ export function CredentialFormDialog({
     }
     
     try {
-      const functionResponse = await supabase.functions.invoke('manage-user-service-credentials', {
-        method: 'POST', // EF lida com POST para create/update (upsert)
+      const functionName = existingCredential?.id 
+        ? `manage-user-integration-credentials/${existingCredential.id}` 
+        : 'manage-user-integration-credentials';
+
+      const method = existingCredential?.id ? 'PUT' : 'POST'; // Usar PUT para editar, POST para criar
+
+      const functionResponse = await supabase.functions.invoke(functionName, {
+        method: method, // Método dinâmico
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: payload,
       });

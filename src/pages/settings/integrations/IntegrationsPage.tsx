@@ -96,7 +96,7 @@ const IntegrationsPage: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke<CredencialServicoUsuario[]>('manage-user-service-credentials', {
+      const { data, error } = await supabase.functions.invoke<CredencialServicoUsuario[]>('manage-user-integration-credentials', {
         method: 'GET',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -143,11 +143,15 @@ const IntegrationsPage: React.FC = () => {
     }
     
     try {
-      // A EF 'manage-user-service-credentials' espera um body: { id: integrationId } para DELETE
-      const { error: functionError } = await supabase.functions.invoke('manage-user-service-credentials', {
+      // A EF 'manage-user-integration-credentials' espera um body: { id: integrationId } para DELETE, ou apenas o ID no path
+      // A EF atualizada espera o ID no path, então vamos ajustar a chamada.
+      // Contudo, a biblioteca supabase.functions.invoke com method DELETE geralmente envia o body.
+      // Vamos manter o body por enquanto, pois a EF parseia o ID do path E pode usar o body se o path parsing falhar.
+      // Se a EF for estritamente path-based para DELETE ID, a chamada seria diferente.
+      const { error: functionError } = await supabase.functions.invoke(`manage-user-integration-credentials/${credentialToDeleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },
-        body: { id: credentialToDeleteId }, 
+        // body: { id: credentialToDeleteId }, // O ID agora está no path, body não é mais necessário para DELETE por ID.
       });
 
       if (functionError) throw functionError;
