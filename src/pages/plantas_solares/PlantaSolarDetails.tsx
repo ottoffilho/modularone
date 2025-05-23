@@ -28,7 +28,7 @@ interface PlantaSolar {
   endereco_estado: string | null;
   latitude: number | null;
   longitude: number | null;
-  potencia_instalada_dc_kwp: number;
+  potencia_instalada_kwp: number;
   data_conexao_rede: string | null;
   status_planta: string;
   observacoes: string | null;
@@ -56,7 +56,7 @@ export default function PlantaSolarDetails() {
           .from('plantas_solares')
           .select('*')
           .eq('id', id)
-          .eq('user_id', user.id)
+          .eq('proprietario_user_id', user.id)
           .single();
           
         if (error) throw error;
@@ -212,7 +212,7 @@ export default function PlantaSolarDetails() {
                 <Zap className="mr-2 h-4 w-4" /> Potência Instalada
               </h3>
               <p className="text-lg font-semibold">
-                {plantaSolar.potencia_instalada_dc_kwp.toFixed(2)} kWp
+                {plantaSolar.potencia_instalada_kwp ? plantaSolar.potencia_instalada_kwp.toFixed(2) : '0.00'} kWp
               </p>
             </div>
           </div>

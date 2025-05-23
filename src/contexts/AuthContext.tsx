@@ -3,6 +3,10 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useToast } from "@/hooks/use-toast";
 
+// Constantes para controle de tentativas de login
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutos em milissegundos
+
 export interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -19,6 +23,20 @@ export interface AuthContextType {
   signOut: () => Promise<{ error: Error | null }>;
 }
 
+// Função de validação de senha forte
+function isStrongPassword(password: string): boolean {
+  // Pelo menos 8 caracteres
+  if (password.length < 8) return false;
+  
+  // Verificar complexidade
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /[0-9]/.test(password);
+  const hasSymbols = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  
+  return hasUpperCase && hasLowerCase && hasNumbers && hasSymbols;
+}
+
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = (): AuthContextType => {
@@ -33,6 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginAttempts, setLoginAttempts] = useState<number>(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -51,6 +71,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     getInitialSession();
 
+    // Verificar se há um lockout salvo e ainda válido
+    const savedLockout = localStorage.getItem('auth_lockout');
+    if (savedLockout) {
+      const lockoutTime = parseInt(savedLockout, 10);
+      if (lockoutTime > Date.now()) {
+        setLockoutUntil(lockoutTime);
+      } else {
+        localStorage.removeItem('auth_lockout');
+      }
+    }
+
+    // Recuperar tentativas salvas
+    const savedAttempts = localStorage.getItem('auth_attempts');
+    if (savedAttempts) {
+      setLoginAttempts(parseInt(savedAttempts, 10));
+    }
+
     // Subscribe to auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -61,6 +98,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Handle specific auth events
         if (event === 'SIGNED_IN') {
+          // Reset do contador de tentativas em caso de sucesso
+          setLoginAttempts(0);
+          localStorage.removeItem('auth_attempts');
+          localStorage.removeItem('auth_lockout');
+          setLockoutUntil(null);
+          
           toast({
             title: "Login bem-sucedido!",
             description: "Você está agora conectado ao ModularOne.",
@@ -92,6 +135,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth methods
   const handleSignIn = async (email: string, password: string) => {
     try {
+      // Verificar lockout
+      if (lockoutUntil && Date.now() < lockoutUntil) {
+        const minutesLeft = Math.ceil((lockoutUntil - Date.now()) / 60000);
+        throw new Error(`Muitas tentativas de login. Tente novamente em ${minutesLeft} minutos.`);
+      }
+      
       setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -100,13 +149,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
       
-      toast({
-        title: "Login bem-sucedido!",
-        description: "Você está agora conectado ao ModularOne.",
-      });
-      
       return { error: null };
     } catch (error) {
+      // Incrementar contador de tentativas
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      localStorage.setItem('auth_attempts', newAttempts.toString());
+      
+      // Verificar se atingiu o limite
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutTime = Date.now() + LOCKOUT_TIME;
+        setLockoutUntil(lockoutTime);
+        localStorage.setItem('auth_lockout', lockoutTime.toString());
+        
+        toast({
+          title: "Conta temporariamente bloqueada",
+          description: "Muitas tentativas de login. Tente novamente em 15 minutos.",
+          variant: "destructive",
+        });
+        
+        return { error: new Error("Conta temporariamente bloqueada. Tente novamente em 15 minutos.") };
+      }
+      
       toast({
         title: "Erro no login",
         description: error instanceof Error ? error.message : "Um erro ocorreu durante o login",
@@ -125,6 +189,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }) => {
     try {
       setLoading(true);
+      
+      // Validar força da senha
+      if (!isStrongPassword(password)) {
+        throw new Error("A senha deve ter pelo menos 8 caracteres e incluir letras maiúsculas, minúsculas, números e símbolos.");
+      }
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,

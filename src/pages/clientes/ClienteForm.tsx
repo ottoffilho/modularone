@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { ArrowLeft, MapPin, Save, Search } from 'lucide-react';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizeObject } from '@/utils/sanitizers';
+import { isValidCEP, isValidCNPJ, isValidCPF } from '@/utils/validations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { ArrowLeft, Save, Search } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   FormControl,
@@ -79,6 +82,11 @@ const clienteSchema = z.object({
   // No entanto, a instrução é preencher campos e o restante ir para dados_adicionais no Supabase.
   // Por ora, não adicionarei ao Zod schema do formulário, mas construiremos no onSubmit.
 
+  tipo_cliente: z.enum(['PROPRIETARIO_USINA', 'CONSUMIDOR_BENEFICIARIO', 'EMPRESA_PARCEIRA', 'OUTRO'], {
+    required_error: "Selecione o papel principal do cliente",
+    invalid_type_error: "Selecione um papel válido para o cliente",
+  }),
+
 }).superRefine((data, ctx) => {
   const { tipo, cpf_cnpj } = data;
   const cleanedCpfCnpj = (cpf_cnpj || '').replace(/\D/g, ''); // Remove non-digits
@@ -110,6 +118,8 @@ export default function ClienteForm() {
   const [initialLoading, setInitialLoading] = useState(isEditMode);
   const [isCnpjLoading, setIsCnpjLoading] = useState(false);
   const [cnpjErrorApi, setCnpjErrorApi] = useState<string | null>(null);
+  const [isCepLoading, setIsCepLoading] = useState(false);
+  const [cepErrorApi, setCepErrorApi] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -117,6 +127,7 @@ export default function ClienteForm() {
   const queryClient = useQueryClient();
   
   const form = useForm<ClienteFormValues>({
+    // @ts-ignore - Conflito de tipos entre versões diferentes do Zod
     resolver: zodResolver(clienteSchema),
     defaultValues: {
       nome_razao_social: '',
@@ -136,10 +147,12 @@ export default function ClienteForm() {
       nome_fantasia: '',
       situacao_cadastral: '',
       inscricao_estadual: '',
+      tipo_cliente: undefined,
     },
   });
 
   const tipoCliente = form.watch('tipo');
+  const cepValue = form.watch('cep');
 
   const handleBuscaCnpj = async () => {
     const cnpjValue = form.getValues('cpf_cnpj');
@@ -190,6 +203,72 @@ export default function ClienteForm() {
     }
   };
 
+  const handleBuscaCep = async () => {
+    // Obter o valor do CEP do formulário
+    const cepValue = form.getValues('cep');
+    if (!cepValue) return;
+
+    // Limpar formatação para ter apenas números
+    const cleanedCep = cepValue.replace(/\D/g, '');
+    if (cleanedCep.length !== 8) {
+      toast({ 
+        title: "CEP Inválido", 
+        description: "Por favor, insira um CEP com 8 dígitos.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsCepLoading(true);
+    setCepErrorApi(null);
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanedCep}`);
+      const data = await response.json();
+
+      if (!response.ok || data.type === 'service_error' || data.name === 'NotFoundError') {
+        const errorMessage = data.message || (data.errors && data.errors[0]?.message) || 'CEP não encontrado ou erro na API.';
+        throw new Error(errorMessage);
+      }
+      
+      // Preencher os campos de endereço com os dados retornados
+      form.setValue('logradouro', data.street || '', { shouldValidate: true });
+      form.setValue('bairro', data.neighborhood || '', { shouldValidate: true });
+      form.setValue('cidade', data.city || '', { shouldValidate: true });
+      form.setValue('estado', data.state || '', { shouldValidate: true });
+      
+      // Manter o foco no campo número após o preenchimento automático
+      setTimeout(() => {
+        const numeroInput = document.querySelector('input[name="numero"]') as HTMLInputElement;
+        if (numeroInput) numeroInput.focus();
+      }, 100);
+
+      toast({ 
+        title: "CEP encontrado!", 
+        description: "Endereço preenchido automaticamente.",
+      });
+
+    } catch (error: unknown) {
+      console.error('Erro ao buscar CEP:', error);
+      const message = error instanceof Error ? error.message : "Falha ao consultar CEP.";
+      setCepErrorApi(message);
+      toast({ 
+        title: "Erro na Consulta de CEP", 
+        description: message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsCepLoading(false);
+    }
+  };
+
+  // Efeito para buscar CEP quando o campo perder o foco e tiver 8 dígitos
+  useEffect(() => {
+    const cleanedCep = cepValue?.replace(/\D/g, '');
+    if (cleanedCep && cleanedCep.length === 8) {
+      handleBuscaCep();
+    }
+  }, [cepValue]);
+
   useEffect(() => {
     const loadCliente = async () => {
       if (!isEditMode || !user) {
@@ -202,7 +281,25 @@ export default function ClienteForm() {
         
         const { data, error } = await supabase
           .from('clientes')
-          .select('id, nome_razao_social, tipo_pessoa, cpf, cnpj, nome_fantasia, dados_adicionais')
+          .select(`
+            id, 
+            nome_razao_social, 
+            tipo_pessoa, 
+            cpf, 
+            cnpj, 
+            nome_fantasia, 
+            dados_adicionais, 
+            tipo_cliente,
+            email,
+            telefone_principal,
+            cep,
+            logradouro,
+            numero_endereco,
+            complemento,
+            bairro,
+            cidade,
+            estado
+          `)
           .eq('id', id)
           .eq('proprietario_user_id', user.id)
           .single();
@@ -220,25 +317,30 @@ export default function ClienteForm() {
         }
         
         const da = (data.dados_adicionais as Record<string, unknown>) || {};
+        // Acessando tipo_cliente como uma propriedade adicional com type assertion
+        const tipoCliente = data.tipo_cliente;
 
         form.reset({
           tipo: data.tipo_pessoa || undefined,
           nome_razao_social: data.nome_razao_social || '',
-          email: typeof da.email === 'string' ? da.email : '',
-          telefone: typeof da.telefone === 'string' ? da.telefone : '',
+          // Usar dados das colunas dedicadas primeiro, com fallback para dados_adicionais para compatibilidade
+          email: data.email || (typeof da.email === 'string' ? da.email : ''),
+          telefone: data.telefone_principal || (typeof da.telefone === 'string' ? da.telefone : ''),
           cpf_cnpj: data.tipo_pessoa === 'PF'
             ? (data.cpf || (typeof da.cpf === 'string' ? da.cpf : '') || '')
             : (data.cnpj || (typeof da.cnpj === 'string' ? da.cnpj : '') || ''),
-          cep: typeof da.cep === 'string' ? da.cep : '',
-          logradouro: typeof da.logradouro === 'string' ? da.logradouro : '',
-          numero: typeof da.numero === 'string' ? da.numero : '',
-          complemento: typeof da.complemento === 'string' ? da.complemento : '',
-          bairro: typeof da.bairro === 'string' ? da.bairro : '',
-          cidade: typeof da.cidade === 'string' ? da.cidade : (typeof da.municipio === 'string' ? da.municipio : ''),
-          estado: typeof da.estado === 'string' ? da.estado : (typeof da.uf === 'string' ? da.uf : ''),
+          // Formatar o CEP se ele estiver no formato sem hífen
+          cep: data.cep ? (data.cep.length === 8 ? `${data.cep.slice(0, 5)}-${data.cep.slice(5)}` : data.cep) : (typeof da.cep === 'string' ? da.cep : ''),
+          logradouro: data.logradouro || (typeof da.logradouro === 'string' ? da.logradouro : ''),
+          numero: data.numero_endereco || (typeof da.numero === 'string' ? da.numero : ''),
+          complemento: data.complemento || (typeof da.complemento === 'string' ? da.complemento : ''),
+          bairro: data.bairro || (typeof da.bairro === 'string' ? da.bairro : ''),
+          cidade: data.cidade || (typeof da.cidade === 'string' ? da.cidade : ''),
+          estado: data.estado || (typeof da.estado === 'string' ? da.estado : ''),
           nome_fantasia: data.nome_fantasia || (typeof da.nome_fantasia === 'string' ? da.nome_fantasia : '') || '',
           situacao_cadastral: typeof da.situacao_cadastral === 'string' ? da.situacao_cadastral : '',
           inscricao_estadual: typeof da.inscricao_estadual === 'string' ? da.inscricao_estadual : '',
+          tipo_cliente: tipoCliente || undefined,
         });
       } catch (error) {
         console.error('Erro ao carregar dados do cliente:', error);
@@ -263,40 +365,78 @@ export default function ClienteForm() {
   const onSubmit = async (values: ClienteFormValues) => {
     if (!user) return;
     
-    const cleanedCpfCnpj = (values.cpf_cnpj || '').replace(/\D/g, '');
-
-    const dadosSupabase: Record<string, unknown> = {
-      email: values.email,
-      telefone: values.telefone,
-      tipo: values.tipo,
-      cep: values.cep,
-      logradouro: values.logradouro,
-      numero: values.numero,
-      complemento: values.complemento,
-      bairro: values.bairro,
-      cidade: values.cidade,
-      estado: values.estado,
-      nome_fantasia: values.nome_fantasia,
-      situacao_cadastral: values.situacao_cadastral,
-      inscricao_estadual: values.inscricao_estadual,
+    // Sanitizar todos os dados do formulário antes do processamento
+    const sanitizedValues = sanitizeObject(values);
+    
+    const cleanedCpfCnpj = (sanitizedValues.cpf_cnpj || '').replace(/\D/g, '');
+    
+    // Validar CPF/CNPJ com algoritmo robusto
+    if (sanitizedValues.tipo === 'PF' && !isValidCPF(cleanedCpfCnpj)) {
+      toast({
+        title: "CPF Inválido",
+        description: "O CPF informado não é válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (sanitizedValues.tipo === 'PJ' && !isValidCNPJ(cleanedCpfCnpj)) {
+      toast({
+        title: "CNPJ Inválido", 
+        description: "O CNPJ informado não é válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validar CEP se fornecido
+    if (sanitizedValues.cep && !isValidCEP(sanitizedValues.cep)) {
+      toast({
+        title: "CEP Inválido",
+        description: "O CEP informado não é válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Mantemos o dados_adicionais para campos adicionais que não têm coluna própria
+    // e para manter compatibilidade com código existente
+    const dadosAdicionais: Record<string, unknown> = {
+      situacao_cadastral: sanitizedValues.situacao_cadastral,
+      inscricao_estadual: sanitizedValues.inscricao_estadual,
+      // Podemos adicionar outros campos aqui que não tenham coluna dedicada
     };
 
     // Montar o payload conforme a estrutura da tabela clientes
     const payload: Record<string, unknown> = {
-      nome_razao_social: values.nome_razao_social,
-      tipo_pessoa: values.tipo, // Corrigido para o nome correto da coluna
-      dados_adicionais: dadosSupabase,
+      nome_razao_social: sanitizedValues.nome_razao_social,
+      tipo_pessoa: sanitizedValues.tipo,
       proprietario_user_id: user.id,
+      tipo_cliente: sanitizedValues.tipo_cliente,
+      
+      // Usar as colunas dedicadas
+      email: sanitizedValues.email,
+      telefone_principal: sanitizedValues.telefone,
+      cep: sanitizedValues.cep ? sanitizedValues.cep.replace(/\D/g, '') : null, // Remover formatação do CEP
+      logradouro: sanitizedValues.logradouro,
+      numero_endereco: sanitizedValues.numero,
+      complemento: sanitizedValues.complemento,
+      bairro: sanitizedValues.bairro,
+      cidade: sanitizedValues.cidade,
+      estado: sanitizedValues.estado,
+      
+      // Manter dados_adicionais apenas para campos extra
+      dados_adicionais: dadosAdicionais,
     };
 
-    if (values.tipo === 'PF') {
+    if (sanitizedValues.tipo === 'PF') {
       payload.cpf = cleanedCpfCnpj;
       // Limpar campos de PJ
       payload.cnpj = null;
       payload.nome_fantasia = null;
-    } else if (values.tipo === 'PJ') {
+    } else if (sanitizedValues.tipo === 'PJ') {
       payload.cnpj = cleanedCpfCnpj;
-      payload.nome_fantasia = values.nome_fantasia;
+      payload.nome_fantasia = sanitizedValues.nome_fantasia;
       // Limpar campos de PF
       payload.cpf = null;
     }
@@ -488,9 +628,36 @@ export default function ClienteForm() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>CEP</FormLabel>
-                          <FormControl>
-                            <Input placeholder="XXXXX-XXX" {...field} />
-                          </FormControl>
+                          <div className="flex items-center gap-2">
+                            <FormControl>
+                              <Input 
+                                placeholder="XXXXX-XXX" 
+                                {...field} 
+                                onChange={(e) => {
+                                  // Formatar CEP enquanto digita (opcional)
+                                  let value = e.target.value.replace(/\D/g, '');
+                                  if (value.length > 5) {
+                                    value = value.slice(0, 5) + '-' + value.slice(5, 8);
+                                  }
+                                  // Limitar a 9 caracteres (00000-000)
+                                  if (value.length <= 9) {
+                                    field.onChange(value);
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={handleBuscaCep}
+                              disabled={isCepLoading || !field.value || field.value.replace(/\D/g, '').length !== 8}
+                              className="flex-shrink-0"
+                            >
+                              {isCepLoading ? <Spinner size="sm" /> : <MapPin className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                          {cepErrorApi && <p className="text-sm font-medium text-destructive">{cepErrorApi}</p>}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -633,6 +800,40 @@ export default function ClienteForm() {
                   />
                 </>
               )}
+
+              <FormField
+                control={form.control}
+                name="tipo_cliente"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Papel Principal do Cliente*</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o papel do cliente" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="PROPRIETARIO_USINA">
+                          Proprietário de Usina/Geração
+                        </SelectItem>
+                        <SelectItem value="CONSUMIDOR_BENEFICIARIO">
+                          Consumidor Beneficiário de Energia
+                        </SelectItem>
+                        <SelectItem value="EMPRESA_PARCEIRA">
+                          Empresa Parceira (ex: Instaladora)
+                        </SelectItem>
+                        <SelectItem value="OUTRO">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
             </CardContent>
             <CardFooter className="flex flex-col sm:flex-row justify-end gap-3 px-6 py-5 border-t border-border/30 bg-muted/20">

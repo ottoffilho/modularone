@@ -1,8 +1,14 @@
 ---
+description: 
+globs: 
+alwaysApply: false
+---
+---
 description: Diretrizes Técnicas para Interação com IA no ModularOne
 globs: "**/*"
 alwaysApply: true
 version: 2.1.1
+language: Sempre fale en PT-BR
 # 🔍 Análise de Código (AST Level)
 
 ## Fluxo de Compreensão
