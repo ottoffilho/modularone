@@ -3,7 +3,41 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts'; // Assumindo que temos um cliente admin compartilhado
 // import { ietiesClient } from '../_shared/ietiesClient.ts'; // Comentado por enquanto - Vault/Decryption TBD
 import { getCryptoKey, decryptValue } from '../_shared/crypto.ts'; // Importar funções de crypto.ts
-import md5 from 'npm:js-md5@0.8.3'; // Importar js-md5 para gerar hash MD5
+
+// Função auxiliar para hash MD5 usando crypto nativo
+async function digestMessage(message: string): Promise<string> {
+  // NOTA: Estamos usando MD5 apenas porque a API Growatt requer especificamente este formato.
+  // Em circunstâncias normais, usaríamos um algoritmo mais seguro como SHA-256
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('MD5', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+// Função para validar credenciais obrigatórias
+function validateRequiredCredentials(credentials: Record<string, string>, requiredFields: string[]): boolean {
+  for (const field of requiredFields) {
+    if (!credentials[field] || typeof credentials[field] !== 'string' || credentials[field].trim() === '') {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Função para sanitizar dados sensíveis em logs
+function sanitizeForLogging(obj: Record<string, any>): Record<string, any> {
+  const sensitiveFields = ['password', 'token', 'key', 'secret', 'credential', 'api_key'];
+  const sanitized = { ...obj };
+  
+  for (const field of Object.keys(sanitized)) {
+    if (sensitiveFields.some(sensitive => field.toLowerCase().includes(sensitive))) {
+      sanitized[field] = '***REDACTED***';
+    }
+  }
+  
+  return sanitized;
+}
 
 // Definição da interface para a planta externa padronizada
 interface PlantaExternaPadronizada {
@@ -22,7 +56,7 @@ interface FunctionInput {
 serve(async (req: Request) => {
   // Tratar requisição OPTIONS (preflight)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders(req) });
   }
 
   try {
@@ -30,7 +64,7 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Authorization header missing' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 401,
       });
     }
@@ -40,7 +74,7 @@ serve(async (req: Request) => {
     if (userError || !user) {
       const detail = userError instanceof Error ? userError.message : String(userError);
       return new Response(JSON.stringify({ error: 'Failed to authenticate user', detail }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 401,
       });
     }
@@ -53,7 +87,7 @@ serve(async (req: Request) => {
                                 // ou no body se for POST. Dado que o prompt A diz "Input Esperado (do frontend): { fabricante_id: string }",
                                 // POST com JSON body é o mais direto para supabase.functions.invoke.
       return new Response(JSON.stringify({ error: 'Method not allowed, expected POST' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 405,
       });
     }
@@ -62,7 +96,7 @@ serve(async (req: Request) => {
 
     if (!fabricante_id) {
       return new Response(JSON.stringify({ error: 'Missing fabricante_id in request body' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 400,
       });
     }
@@ -79,7 +113,7 @@ serve(async (req: Request) => {
     if (fabricanteApiError || !fabricanteApiData) {
       const detail = fabricanteApiError instanceof Error ? fabricanteApiError.message : String(fabricanteApiError);
       return new Response(JSON.stringify({ error: 'Configuração do fabricante não encontrada ou erro.', detail }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 404,
       });
     }
@@ -99,7 +133,7 @@ serve(async (req: Request) => {
     if (credencialError || !credencialEntry) {
       const detail = credencialError instanceof Error ? credencialError.message : 'No valid credentials for this manufacturer';
       return new Response(JSON.stringify({ error: 'Credenciais válidas não encontradas.', detail }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 404, // ou 400 se a ausência de credenciais é um bad request
       });
     }
@@ -152,7 +186,7 @@ serve(async (req: Request) => {
       const err = processingError instanceof Error ? processingError : new Error(String(processingError));
       console.error('Erro no processamento/descriptografia de credenciais em get-external-plant-list:', err.message, err.stack);
       return new Response(JSON.stringify({ error: 'Falha ao processar credenciais de serviço.', detail: err.message }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         status: 500,
       });
     }
@@ -167,7 +201,7 @@ serve(async (req: Request) => {
           // Lógica da API Growatt
           // Verificar diferentes possibilidades de nomes dos campos para maior resiliência
           // e logar informações úteis para diagnóstico
-          console.log('Campos disponíveis nas credenciais descriptografadas:', Object.keys(decryptedCredentials).join(', '));
+          console.log('Campos disponíveis nas credenciais descriptografadas:', sanitizeForLogging(decryptedCredentials));
           
           let growattUsername = decryptedCredentials.username; 
           let growattPassword = decryptedCredentials.password;
@@ -191,6 +225,11 @@ serve(async (req: Request) => {
             }
           }
 
+          // Validar credenciais obrigatórias antes do uso
+          if (!validateRequiredCredentials({ username: growattUsername, password: growattPassword }, ['username', 'password'])) {
+            throw new Error('Credenciais incompletas ou inválidas. Verifique as configurações de integração.');
+          }
+
           if (!growattUsername || !growattPassword) {
             // Log detalhado dos campos disponíveis para diagnóstico (sem mostrar valores sensíveis)
             const availableFields = Object.keys(decryptedCredentials);
@@ -199,13 +238,13 @@ serve(async (req: Request) => {
                            'Verifique se as credenciais foram configuradas corretamente na página de integrações.');
           }
           
-          // Gerar hash MD5 da senha usando js-md5
-          const hashedPassword = md5(growattPassword);
+          // Gerar hash MD5 da senha usando crypto nativo
+          const hashedPassword = await digestMessage(growattPassword);
 
-          console.log(`Tentando login na API Growatt para usuário: ${growattUsername} (senha foi hasheada com MD5)`);
+          console.log('Tentando login na API Growatt (credenciais redacted)');
           
           const loginPayload = { account: growattUsername, password: hashedPassword };
-          console.log('Payload de login Growatt:', JSON.stringify({ account: growattUsername, password: '[MD5_HASHED]' }));
+          console.log('Payload de login Growatt:', JSON.stringify(sanitizeForLogging(loginPayload)));
 
           const loginResponse = await fetch('https://openapi.growatt.com/v1/user/login', {
             method: 'POST',
@@ -220,12 +259,12 @@ serve(async (req: Request) => {
           let loginData;
           try {
             loginData = JSON.parse(loginResponseText);
-            console.log('Detalhes da resposta do login Growatt:', JSON.stringify({
+            console.log('Detalhes da resposta do login Growatt:', JSON.stringify(sanitizeForLogging({
               error_code: loginData.error_code,
               error_msg: loginData.error_msg,
               has_data: !!loginData.data,
               status_code: loginResponse.status
-            }));
+            })));
           } catch (jsonError) {
             console.error('Falha ao analisar resposta do login Growatt como JSON:', loginResponseText);
             throw new Error(`Resposta da API Growatt não é um JSON válido: ${loginResponseText}`);
@@ -328,7 +367,7 @@ serve(async (req: Request) => {
           const err = apiError instanceof Error ? apiError : new Error(String(apiError));
           console.error('Growatt API interaction error:', err.message, err.stack);
           return new Response(JSON.stringify({ error: 'Erro ao interagir com a API da Growatt.', detail: err.message }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
             status: 502, // Bad Gateway ou similar
           });
         }
@@ -340,13 +379,13 @@ serve(async (req: Request) => {
 
       default:
         return new Response(JSON.stringify({ error: `Fabricante '${fabricanteIdentifier}' não suportado para importação.` }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
           status: 400,
         });
     }
 
     return new Response(JSON.stringify(externalPlants), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -357,6 +396,6 @@ serve(async (req: Request) => {
     return new Response(JSON.stringify({
         error: isCryptoConfigError ? 'Erro config interna.' : 'Erro interno na função.',
         detail: isCryptoConfigError ? 'Omitido por segurança' : err.message
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 });
+    }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }, status: 500 });
   }
 }); 

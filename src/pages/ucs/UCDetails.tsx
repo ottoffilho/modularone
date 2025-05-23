@@ -57,9 +57,9 @@ interface UC {
 
 interface Fatura {
   id: string;
-  mes_referencia: string;
-  arquivo_url: string;
-  nome_arquivo: string;
+  data_cadastro: string;
+  arquivo_pdf: string;
+  status: string;
   created_at: string;
 }
 
@@ -89,7 +89,7 @@ export default function UCDetails() {
             clientes:cliente_id (nome_razao_social)
           `)
           .eq('id', id)
-          .eq('user_id', user.id)
+          .eq('proprietario_user_id', user.id)
           .single();
 
         if (ucError) throw ucError;
@@ -115,8 +115,8 @@ export default function UCDetails() {
           .from('faturas')
           .select('*')
           .eq('unidade_consumidora_id', id)
-          .eq('user_id', user.id)
-          .order('mes_referencia', { ascending: false });
+          .eq('proprietario_user_id', user.id)
+          .order('data_cadastro', { ascending: false });
 
         if (faturasError) throw faturasError;
 
@@ -159,7 +159,7 @@ export default function UCDetails() {
         .from('unidades_consumidoras')
         .delete()
         .eq('id', uc.id)
-        .eq('user_id', user.id);
+        .eq('proprietario_user_id', user.id);
 
       if (error) throw error;
 
@@ -321,9 +321,9 @@ export default function UCDetails() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Mês de Referência</TableHead>
-                  <TableHead>Nome do Arquivo</TableHead>
-                  <TableHead>Data de Upload</TableHead>
+                  <TableHead>Data de Cadastro</TableHead>
+                  <TableHead>Arquivo PDF</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -333,21 +333,21 @@ export default function UCDetails() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <CalendarClock className="h-4 w-4 text-primary" />
-                        {fatura.mes_referencia}
+                        {fatura.data_cadastro}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <File className="h-4 w-4 text-muted-foreground" />
-                        {fatura.nome_arquivo}
+                        {fatura.arquivo_pdf}
                       </div>
                     </TableCell>
-                    <TableCell>{new Date(fatura.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{fatura.status}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="icon" asChild>
                           <a 
-                            href={fatura.arquivo_url} 
+                            href={fatura.arquivo_pdf} 
                             target="_blank" 
                             rel="noopener noreferrer"
                           >
@@ -356,8 +356,8 @@ export default function UCDetails() {
                         </Button>
                         <Button variant="ghost" size="icon" asChild>
                           <a 
-                            href={fatura.arquivo_url} 
-                            download={fatura.nome_arquivo}
+                            href={fatura.arquivo_pdf} 
+                            download={fatura.arquivo_pdf}
                           >
                             <Download className="h-4 w-4" />
                           </a>

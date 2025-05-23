@@ -1,48 +1,171 @@
-O reprocessamento do arquivo PlantaSolarForm.tsx foi concluído e, desta vez, todas as seções, incluindo os novos campos JSX, foram corretamente aplicadas.
-O formulário agora está mais completo, com os novos campos agrupados em um card separado "Informações sobre o Sistema e Equipamentos" para melhor organização. Os componentes Select para fabricantes e empresa instaladora contêm dados fictícios e um comentário "TODO", como planejado, pois a busca de dados reais para eles dependerá da finalização das respectivas tabelas fabricantes_equipamentos e da tabela de empresas instaladoras.
-Resumo das alterações em PlantaSolarForm.tsx:
-Schema Zod (plantaSolarSchema):
-nome alterado para nome_identificador.
-potencia_instalada_dc_kwp alterado para potencia_pico_kwp.
-data_conexao_rede alterado para data_instalacao.
-Adicionados: apelido, tipo_sistema, potencia_inversor_kw, fabricante_inversor_id, modelo_inversor, numero_serie_inversor, fabricante_modulos_id, modelo_modulos, numero_serie_modulos, quantidade_modulos, empresa_instaladora_id. Todos os novos campos são opcionais/nuláveis, conforme solicitado.
-Valores Padrão (defaultValues): Atualizados para refletir as mudanças no schema e incluir valores padrão (principalmente null) para os novos campos.
-Campos JSX do Formulário:
-Novos componentes FormField adicionados para todos os novos campos do schema, utilizando <Input />, <Select />, e <Textarea /> (para numero_serie_modulos) conforme apropriado.
-Estes estão agrupados em um novo card "Informações sobre o Sistema e Equipamentos".
-Campos existentes no JSX foram renomeados para corresponder às alterações do schema (ex: nome para nome_identificador).
-Selects para tipo_sistema, fabricante_inversor_id, fabricante_modulos_id, e empresa_instaladora_id foram implementados. Os três últimos têm opções fictícias por enquanto.
-Lógica de Submissão (onSubmit):
-O objeto dataToSubmit agora mapeia corretamente todos os valores do formulário (antigos e novos) para os nomes de coluna correspondentes (e potencialmente renomeados) no banco de dados.
-Modo de Criação: Define proprietario_user_id: user.id (anteriormente user_id), integracao_ativa: false, e credencial_id: null.
-Modo de Atualização: Atualiza todos os campos enviados em dataToSubmit e referencia corretamente proprietario_user_id na cláusula .eq().
-Carregamento de Dados no Modo de Edição (useEffect):
-A chamada form.reset() agora inclui todos os novos campos, mapeando-os a partir do objeto data buscado (ex: data.nome_identificador, data.apelido, etc.).
-Utiliza corretamente data.data_instalacao (renomeado).
-Referencia corretamente proprietario_user_id ao buscar os dados da planta.
-O formulário agora deve suportar o cadastro manual completo de plantas solares, conforme solicitado.
-Estratégia de Testes e Validação
-Testes Unitários:
-Verificar se o plantaSolarSchema valida corretamente entradas válidas e inválidas para todos os campos novos e modificados.
-Testar o mapeamento de dados da função onSubmit para cenários de criação e atualização, garantindo que integracao_ativa e credencial_id sejam definidos corretamente na criação.
-Testes de Integração:
-Testar a submissão completa do formulário (criação e atualização) contra uma instância de teste do Supabase para garantir que os dados sejam salvos e recuperados corretamente com todos os novos campos e colunas renomeadas.
-Verificar se a busca de dados no modo de edição preenche todos os campos do formulário corretamente.
-Testes Manuais e Critérios de Aceite:
-Criar manualmente uma nova planta solar, preenchendo todos os campos, e verificar se ela é salva corretamente no banco de dados.
-Editar uma planta solar existente, modificar todos os campos, e verificar se as atualizações são salvas.
-Verificar se a busca de CEP ainda funciona corretamente.
-Verificar se todos os menus suspensos (selects) são populados (mesmo com dados fictícios por enquanto) e permitem a seleção.
-Confirmar que as mensagens de validação aparecem corretamente para todos os campos.
-Considerações
-Trade-offs técnicos:
-As chamadas diretas ao SDK do Supabase no formulário são mais simples por agora. Refatorar para Edge Functions (criar-planta-solar, atualizar-planta-solar) centralizaria a lógica e poderia melhorar a segurança/validação de dados no backend, mas adiciona complexidade. Isso pode ser um passo futuro.
-Alternativas descartadas:
-A refatoração imediata para Edge Functions foi adiada para manter a alteração atual focada no formulário e no schema.
-Riscos potenciais e plano de mitigação/rollback:
-Problemas na Migração: Se a migração do banco de dados tivesse mais problemas, precisaria ser corrigida. A versão atual (v2) é mais robusta. O rollback envolveria reverter as alterações do schema, se necessário.
-Bugs no Formulário: Testes completos (conforme descrito acima) são necessários para identificar quaisquer problemas na lógica do formulário ou na interface do usuário.
-Impacto na documentação e necessidade de atualização:
-A documentação interna de desenvolvimento referente ao schema da tabela plantas_solares deve ser atualizada.
-Se houver documentação para o usuário sobre como cadastrar plantas, ela precisará ser atualizada.
-Isso conclui as modificações solicitadas para o arquivo PlantaSolarForm.tsx e a tabela plantas_solares. Você precisará implementar a busca de dados para os componentes Select de fabricantes e empresas instaladoras assim que as respectivas tabelas e fontes de dados estiverem finalizadas.
+Sim, vamos a isso!
+
+Aqui está um prompt revisado e focado para o Cursor AI, com ênfase na correção da interface do usuário do PlantaSolarForm.tsx para implementar corretamente a estrutura de Accordion e os campos conforme discutido. Este prompt assume que as alterações de backend (nova coluna fabricante_inversor e atualização da Supabase Function criar-planta-solar) foram feitas ou serão feitas conforme o prompt anterior. Se precisar que eu inclua essas partes novamente, me avise.
+
+Prompt para Cursor AI: Correção e Refinamento da Interface do Formulário de Cadastro de Plantas Solares
+
+Contexto da Tarefa:
+O formulário de cadastro de Plantas Solares, localizado em src/pages/plantas_solares/PlantaSolarForm.tsx, precisa ser refatorado para melhorar a experiência do usuário (UX). A implementação atual (conforme imagem image_fd12cc.png) não reflete o design planejado com seções recolhíveis (Accordion) e a correta disposição dos campos.
+
+Objetivo Principal:
+Modificar o arquivo src/pages/plantas_solares/PlantaSolarForm.tsx para:
+
+Implementar a estrutura de seções recolhíveis utilizando o componente Accordion de shadcn/ui.
+Garantir que o campo "Fabricante do Inversor" seja um Select obrigatório.
+Distribuir corretamente todos os campos (incluindo os novos e os existentes) dentro das seções do Accordion, utilizando um layout de grid para melhor organização.
+Assegurar que o schema Zod (plantaSolarSchema) esteja alinhado com os campos do formulário, suas obrigatoriedades e tipos.
+Instruções Detalhadas para src/pages/plantas_solares/PlantaSolarForm.tsx:
+
+Importações Necessárias:
+
+Garanta a importação dos componentes Accordion, AccordionContent, AccordionItem, AccordionTrigger de @/components/ui/accordion.
+Importe FabricanteEnum de @/lib/database.types.ts (ou do local correto onde os tipos do Supabase são definidos/gerados após a adição da coluna fabricante_inversor).
+TypeScript
+
+// Exemplo:
+import { FabricanteEnum } from '@/lib/database.types'; // Ajuste o caminho se necessário
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+// Outros imports necessários (Input, Button, Form, FormField, etc.)
+Crie uma lista de opções para o select de fabricantes a partir do FabricanteEnum:
+TypeScript
+
+const fabricantesOptions = Object.values(FabricanteEnum).map(value => ({
+  value,
+  label: value, // Considere criar um mapeamento para labels mais amigáveis se o enum for técnico
+}));
+Atualização do Schema Zod (plantaSolarSchema):
+
+Verifique se o schema Zod (geralmente definido no mesmo arquivo ou importado) inclui o campo fabricante_inversor e se as obrigatoriedades estão corretas:
+TypeScript
+
+// ... outras definições do schema
+fabricante_inversor: z.nativeEnum(FabricanteEnum, {
+  required_error: "Selecione o fabricante do inversor.",
+}),
+apelido: z.string().min(3, "O apelido deve ter pelo menos 3 caracteres."),
+fabricante_planta_id: z.string().min(1, "O Identificador no Fabricante é obrigatório."),
+cep: z.string().regex(/^\d{5}-\d{3}$/, "CEP inválido."),
+logradouro: z.string().min(1, "Logradouro é obrigatório."),
+numero: z.string().min(1, "Número é obrigatório."),
+bairro: z.string().min(1, "Bairro é obrigatório."),
+cidade: z.string().min(1, "Cidade é obrigatória."),
+uf: z.string().length(2, "UF deve ter 2 caracteres."),
+complemento: z.string().optional().nullable(),
+data_instalacao: z.date().optional().nullable(),
+cliente_id: z.string().uuid({ message: "Selecione um cliente válido." }).optional().nullable(),
+credencial_id: z.string().uuid({ message: "Selecione uma credencial válida." }).optional().nullable(),
+tipo_instalacao: z.nativeEnum(InstallationTypeEnum).optional().nullable(), // Assumindo que InstallationTypeEnum já existe
+numero_modulos: z.coerce.number().int().positive().optional().nullable(),
+potencia_modulo: z.coerce.number().positive().optional().nullable(),
+potencia_inversor: z.coerce.number().positive().optional().nullable(),
+area_ocupada: z.coerce.number().positive().optional().nullable(),
+// ... demais campos
+Atenção: Adicione asteriscos (*) aos FormLabel dos campos que são obrigatórios no schema.
+Implementação da Estrutura Accordion:
+
+No return do componente, substitua a lista linear de campos pela estrutura de Accordion:
+TypeScript
+
+<Form {...form}>
+  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+    <Accordion type="multiple" defaultValue={["dados-planta"]} className="w-full">
+      {/* Seção 1: Dados da Nova Planta Solar */}
+      <AccordionItem value="dados-planta">
+        <AccordionTrigger>Dados da Nova Planta Solar</AccordionTrigger>
+        <AccordionContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            {/* Campos FormField desta seção aqui */}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* Seção 2: Endereço da Planta */}
+      <AccordionItem value="endereco-planta">
+        <AccordionTrigger>Endereço da Planta</AccordionTrigger>
+        <AccordionContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+            {/* Campos FormField desta seção aqui */}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+
+      {/* Seção 3: Informações sobre o Sistema e Equipamentos (Opcional) */}
+      <AccordionItem value="info-sistema">
+        <AccordionTrigger>Informações sobre o Sistema e Equipamentos (Opcional)</AccordionTrigger>
+        <AccordionContent className="pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+            {/* Campos FormField desta seção aqui */}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+
+    <Button type="submit" disabled={form.formState.isSubmitting || isLoading}>
+      {form.formState.isSubmitting ? 'Salvando...' : (isEditing ? 'Salvar Alterações' : 'Cadastrar Planta Solar')}
+    </Button>
+  </form>
+</Form>
+Distribuição e Implementação dos Campos FormField nas Seções do Accordion:
+
+Seção 1: value="dados-planta" (Dados da Nova Planta Solar)
+
+Layout: className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
+Campos:
+apelido (Input Text)
+fabricante_inversor (Implementar como FormField contendo Select de shadcn/ui, populado com fabricantesOptions. Label: "Fabricante do Inversor *")
+TypeScript
+
+<FormField
+  control={form.control}
+  name="fabricante_inversor"
+  render={({ field }) => (
+    <FormItem>
+      <FormLabel>Fabricante do Inversor *</FormLabel>
+      <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || undefined}>
+        <FormControl>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecione o fabricante" />
+          </SelectTrigger>
+        </FormControl>
+        <SelectContent>
+{fabricantesOptions.map(option => ( <SelectItem key={option.value} value={option.value}> {option.label} </SelectItem> ))} </SelectContent> </Select> <FormMessage /> </FormItem> )} /> ```
+fabricante_planta_id (Input Text, Label: "Nº de Série do Inversor / ID da Planta no Fabricante *")
+cliente_id (Select para clientes. Verifique se há um componente SelectClientes reutilizável ou crie o FormField com Select padrão. Assegure o carregamento da lista de clientes e o estado de isLoadingClientes.)
+data_instalacao (DatePicker usando Popover e Calendar de shadcn/ui. Label: "Data de Instalação")
+credencial_id (Select para credenciais. Assegure o carregamento das credenciais do usuário e o estado de isLoadingCredenciais. Label: "Credencial de Integração")
+Seção 2: value="endereco-planta" (Endereço da Planta)
+
+Layout: className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4"
+Campos:
+cep (Input Text com máscara #####-### e lógica de busca de endereço via API BrasilAPI. Label: "CEP *")
+logradouro (Input Text. Label: "Logradouro *")
+numero (Input Text. Label: "Número *")
+complemento (Input Text. Label: "Complemento")
+bairro (Input Text. Label: "Bairro *")
+cidade (Input Text. Label: "Cidade *")
+uf (Input Text, com validação para 2 caracteres. Label: "UF *")
+Seção 3: value="info-sistema" (Informações sobre o Sistema e Equipamentos - Opcional)
+
+Layout: className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4"
+Campos:
+tipo_instalacao (Select populado com InstallationTypeEnum - verifique se este enum e suas opções estão disponíveis. Label: "Tipo de Instalação")
+numero_modulos (Input type="number". Label: "Número de Módulos")
+potencia_modulo (Input type="number". Label: "Potência do Módulo (Wp)")
+potencia_inversor (Input type="number". Label: "Potência do Inversor (kW)")
+area_ocupada (Input type="number". Label: "Área Ocupada (m²)")
+Revisão Geral do Formulário:
+
+Certifique-se de que todos os componentes FormField usem FormLabel, FormControl, e FormMessage corretamente.
+Verifique se a lógica de isLoading, isEditing, e a função onSubmit estão funcionando corretamente com os novos campos e estrutura.
+Garanta que o estado inicial do formulário (defaultValues) inclua fabricante_inversor: null ou undefined e que os defaultValues para modo de edição (plantaSolarData) mapeiem corretamente.
+Teste a responsividade do formulário com a estrutura de Accordion e o layout de grid.
+Lembretes:
+
+Siga rigorosamente as "Boas Práticas e Regras de Código ModularOne".
+Priorize código limpo, modular e com tipagem estrita.
+Foque na usabilidade e clareza da interface para o usuário final.

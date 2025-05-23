@@ -3,6 +3,8 @@ description: Diretrizes Técnicas para Desenvolvimento Modular
 globs: 
 alwaysApply: true
 version: 2.1
+language: Sempre fale en PT-BR
+
 # 🧠 Arquitetura do Projeto
 
 ## 🎯 Objetivo Estratégico

@@ -1,16 +1,34 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Database } from './database.types';
 
-// Use the values from the connected Supabase project
-const supabaseUrl = "https://rmzntydwfdukiebhlmfn.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJtem50eWR3ZmR1a2llYmhsbWZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1MDI0MzksImV4cCI6MjA2MzA3ODQzOX0.e7Ko-Uy0tp1On4oJC8-NrsvvLnWVEVZET3QvN3AGNHI";
+// Use the values from environment variables instead of hardcoded values
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Variáveis de ambiente Supabase não configuradas.");
+}
 
 // Create the Supabase client
 export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey
 );
+
+// Funções de proteção CSRF
+export const generateCsrfToken = (): string => {
+  return crypto.randomUUID();
+}
+
+// Armazenar o token na sessão
+export const storeCsrfToken = (token: string): void => {
+  sessionStorage.setItem('csrf_token', token);
+}
+
+// Obter o token armazenado
+export const getCsrfToken = (): string | null => {
+  return sessionStorage.getItem('csrf_token');
+}
 
 // Utility functions for authentication
 export const signIn = async (email: string, password: string) => {

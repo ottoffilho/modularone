@@ -5,19 +5,24 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 console.log("Função criar-planta-solar inicializada.");
 
+// Definição do enum FabricanteEnum para validação
+const FabricanteEnum = z.enum(['GROWATT', 'SAJ', 'FRONIUS', 'SUNGROW', 'HUAWEI', 'GOODWE', 'OUTRO']);
+
 const plantaSolarSchema = z.object({
   nome_da_planta: z.string().min(1, "Nome da planta é obrigatório."),
   id_externo: z.string().nullable().optional(),
   tipo_sistema_externo: z.string().nullable().optional(),
+  fabricante_inversor: FabricanteEnum,
+  credencial_id: z.string().uuid().nullable().optional(),
   potencia_instalada_kwp: z.number().positive("Potência deve ser um número positivo."),
-  data_instalacao: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/, "Data de instalação deve estar no formato YYYY-MM-DD."),
+  data_instalacao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de instalação deve estar no formato YYYY-MM-DD."),
   endereco_rua: z.string().min(1, "Rua é obrigatória."),
   endereco_numero: z.string().min(1, "Número é obrigatório."),
   endereco_complemento: z.string().nullable().optional(),
   endereco_bairro: z.string().min(1, "Bairro é obrigatório."),
   endereco_cidade: z.string().min(1, "Cidade é obrigatória."),
   endereco_estado: z.string().length(2, "Estado deve ter 2 caracteres."),
-  endereco_cep: z.string().regex(/^\\d{5}-?\\d{3}$/, "CEP deve estar no formato XXXXX-XXX ou XXXXXXXX."),
+  endereco_cep: z.string().regex(/^\d{5}-?\d{3}$/, "CEP deve estar no formato XXXXX-XXX ou XXXXXXXX."),
   geolocalizacao_latitude: z.number().min(-90).max(90).nullable().optional(),
   geolocalizacao_longitude: z.number().min(-180).max(180).nullable().optional(),
   dados_adicionais: z.object({}).passthrough().nullable().optional(), // Permite qualquer objeto JSONB
@@ -73,10 +78,11 @@ serve(async (req: Request) => {
     const validationResult = plantaSolarSchema.safeParse(body);
 
     if (!validationResult.success) {
-      console.error("Erro de validação:", validationResult.error.flatten());
+      const errorResult = validationResult as z.SafeParseError<typeof plantaSolarSchema>;
+      console.error("Erro de validação:", errorResult.error.flatten());
       return new Response(JSON.stringify({ 
         error: "Erro de validação", 
-        details: validationResult.error.flatten().fieldErrors 
+        details: errorResult.error.flatten().fieldErrors 
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
@@ -85,6 +91,56 @@ serve(async (req: Request) => {
 
     const plantaData = validationResult.data;
 
+    // Validação de compatibilidade de credencial
+    if (plantaData.credencial_id) {
+      const { data: credencial, error: credencialError } = await supabaseAdminClient
+        .from('credenciais_servico_usuario')
+        .select('fabricante_id')
+        .eq('id', plantaData.credencial_id)
+        .single();
+
+      if (credencialError) {
+        console.error('Erro ao buscar credencial:', credencialError);
+        return new Response(JSON.stringify({ error: 'Erro ao validar credencial.' }), { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      if (!credencial) {
+        return new Response(JSON.stringify({ error: 'Credencial não encontrada.' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      // Buscar o fabricante da credencial
+      const { data: fabricante, error: fabricanteError } = await supabaseAdminClient
+        .from('fabricantes_equipamentos')
+        .select('nome')
+        .eq('id', credencial.fabricante_id)
+        .single();
+
+      if (fabricanteError) {
+        console.error('Erro ao buscar fabricante:', fabricanteError);
+        return new Response(JSON.stringify({ error: 'Erro ao validar fabricante da credencial.' }), { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+
+      // Verificar se o fabricante da credencial é compatível com o fabricante do inversor
+      // Note: Estamos comparando o nome do fabricante (string) com o valor do enum
+      if (fabricante && fabricante.nome.toUpperCase() !== plantaData.fabricante_inversor) {
+        return new Response(JSON.stringify({ 
+          error: 'A credencial selecionada não é compatível com o fabricante do inversor informado.' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
+    }
+
     const enderecoCompleto = [
       plantaData.endereco_rua,
       plantaData.endereco_numero,
@@ -92,12 +148,11 @@ serve(async (req: Request) => {
       plantaData.endereco_bairro,
       plantaData.endereco_cidade,
       plantaData.endereco_estado,
-      plantaData.endereco_cep?.replace(/\D/g, '') // CORREÇÃO: Removida barra extra
+      plantaData.endereco_cep?.replace(/\D/g, '')
     ].filter(Boolean).join(', ');
 
     let geolocalizacaoFormatted = null;
     if (plantaData.geolocalizacao_longitude != null && plantaData.geolocalizacao_latitude != null) {
-      // CORREÇÃO: Removidas barras extras de escape
       geolocalizacaoFormatted = `POINT(${plantaData.geolocalizacao_longitude} ${plantaData.geolocalizacao_latitude})`;
     }
     
@@ -109,6 +164,8 @@ serve(async (req: Request) => {
         nome_da_planta: plantaData.nome_da_planta,
         id_externo: plantaData.id_externo,
         tipo_sistema_externo: plantaData.tipo_sistema_externo,
+        fabricante_inversor: plantaData.fabricante_inversor,
+        credencial_id: plantaData.credencial_id,
         potencia_instalada_kwp: plantaData.potencia_instalada_kwp,
         data_instalacao: plantaData.data_instalacao,
         endereco: enderecoCompleto,
@@ -140,7 +197,7 @@ serve(async (req: Request) => {
       status: 201,
     });
 
-  } catch (error) {
+  } catch (error: any) { // Tipando o erro como any para acessar a propriedade message
     console.error("Erro inesperado na função criar-planta-solar:", error);
     return new Response(JSON.stringify({ error: error.message || "Erro interno do servidor" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

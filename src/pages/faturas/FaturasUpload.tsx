@@ -82,6 +82,7 @@ export default function FaturasUpload() {
   const { toast } = useToast();
   
   const form = useForm<FaturaFormValues>({
+    // @ts-ignore - Incompatibilidade de tipos entre versões do Zod
     resolver: zodResolver(faturaSchema),
     defaultValues: {
       unidade_consumidora_id: ucIdFromQuery || '',
@@ -121,7 +122,7 @@ export default function FaturasUpload() {
             endereco,
             clientes:cliente_id (nome_razao_social)
           `)
-          .eq('user_id', user.id)
+          .eq('proprietario_user_id', user.id)
           .order('identificador');
           
         if (error) throw error;
@@ -194,7 +195,7 @@ export default function FaturasUpload() {
           arquivo_url: publicUrl,
           nome_arquivo: file.name,
           unidade_consumidora_id: values.unidade_consumidora_id,
-          user_id: user.id,
+          proprietario_user_id: user.id,
           created_at: new Date().toISOString(),
         });
         

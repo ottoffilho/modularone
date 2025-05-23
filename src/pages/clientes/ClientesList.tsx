@@ -19,6 +19,7 @@ interface Cliente {
   email: string;
   telefone: string;
   tipo: 'PF' | 'PJ';
+  tipo_cliente?: 'PROPRIETARIO_USINA' | 'CONSUMIDOR_BENEFICIARIO' | 'EMPRESA_PARCEIRA' | 'OUTRO'; // Adicionando tipo_cliente
   ucsCount: number; // Contagem de UCs
 }
 
@@ -26,6 +27,7 @@ interface Cliente {
 interface ClienteFromDB {
   id: string;
   nome_razao_social: string;
+  tipo_cliente?: 'PROPRIETARIO_USINA' | 'CONSUMIDOR_BENEFICIARIO' | 'EMPRESA_PARCEIRA' | 'OUTRO'; // Adicionando tipo_cliente
   dados_adicionais?: {
     email?: string;
     telefone?: string;
@@ -35,7 +37,7 @@ interface ClienteFromDB {
 }
 
 // Definindo o tipo da QueryKey para fetchClientesAPI
-// [identificador_da_query, termo_de_busca, filtro_tipo_cliente]
+// [identificador_da_query, termo_de_busca, filtro_tipo]
 type ClientesQueryKey = [string, string, string | undefined];
 
 // Função de API que busca os clientes do Supabase
@@ -47,12 +49,13 @@ const fetchClientesAPI = async (context: QueryFunctionContext<ClientesQueryKey>)
     .select(`
       id,
       nome_razao_social,
+      tipo_cliente,
       dados_adicionais,
       unidades_consumidoras ( count )
     `)
 
   if (tipoCliente) {
-    query = query.eq('dados_adicionais->>tipo', tipoCliente);
+    query = query.eq('tipo_cliente', tipoCliente);
   }
 
   if (searchTerm) {
@@ -75,6 +78,7 @@ const fetchClientesAPI = async (context: QueryFunctionContext<ClientesQueryKey>)
     email: cliente.dados_adicionais?.email || '',
     telefone: cliente.dados_adicionais?.telefone || '',
     tipo: cliente.dados_adicionais?.tipo || 'PF', // Default para 'PF' ou ajuste conforme necessário
+    tipo_cliente: cliente.tipo_cliente, // Pegando o valor diretamente da coluna tipo_cliente
     ucsCount: (cliente.unidades_consumidoras && Array.isArray(cliente.unidades_consumidoras) && cliente.unidades_consumidoras.length > 0) 
               ? cliente.unidades_consumidoras[0].count 
               : (cliente.unidades_consumidoras && typeof cliente.unidades_consumidoras === 'object' && 'count' in cliente.unidades_consumidoras)
@@ -83,10 +87,11 @@ const fetchClientesAPI = async (context: QueryFunctionContext<ClientesQueryKey>)
   }));
 };
 
-// Placeholder para a função de API que deleta um cliente
+// Função para deletar um cliente no Supabase
 const deleteClienteAPI = async (clienteId: string, ucsCount: number): Promise<{ success: boolean; message?: string }> => {
   console.log(`Tentando deletar cliente com ID: ${clienteId}, UCs: ${ucsCount}`);
 
+  // Validação para não permitir excluir clientes com UCs associadas
   if (ucsCount > 0) {
     return { 
       success: false, 
@@ -94,9 +99,51 @@ const deleteClienteAPI = async (clienteId: string, ucsCount: number): Promise<{ 
     };
   }
   
-  await new Promise(resolve => setTimeout(resolve, 700));
-  console.log(`Cliente com ID: ${clienteId} deletado (simulação).`);
-  return { success: true }; 
+  try {
+    // Obter o usuário atual
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        message: 'Usuário não autenticado. Faça login novamente para continuar.'
+      };
+    }
+
+    // Exclusão real no banco de dados usando Supabase com verificação de proprietário
+    const { error } = await supabase
+      .from('clientes')
+      .delete()
+      .eq('id', clienteId)
+      .eq('proprietario_user_id', user.id); // Verifica se o usuário atual é o proprietário
+    
+    if (error) {
+      console.error("Erro ao excluir cliente:", error);
+      
+      // Tratamento específico para erros comuns
+      if (error.code === '42P01') {
+        return { success: false, message: 'Tabela não encontrada. Contate o suporte.' };
+      } else if (error.code === '23503') {
+        return { success: false, message: 'Não é possível excluir este cliente pois ele possui registros vinculados.' };
+      } else if (error.code === 'PGRST116') {
+        return { success: false, message: 'Você não tem permissão para excluir este cliente.' };
+      }
+      
+      return { 
+        success: false, 
+        message: `Erro ao excluir cliente: ${error.message}` 
+      };
+    }
+    
+    console.log(`Cliente com ID: ${clienteId} excluído com sucesso.`);
+    return { success: true };
+  } catch (err: any) {
+    console.error("Exceção ao excluir cliente:", err);
+    return { 
+      success: false, 
+      message: `Erro inesperado: ${err.message || 'Erro desconhecido'}` 
+    };
+  }
 };
 
 // Custom hook for debounce
@@ -223,6 +270,29 @@ export default function ClientesList() {
           </span>
         </TableCell>
         <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
+          {cliente.tipo_cliente ? (
+            <span className={`px-3 py-1 text-xs font-medium tracking-wider rounded-full ${
+              cliente.tipo_cliente === 'PROPRIETARIO_USINA' 
+                ? 'bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:border-violet-700'
+                : cliente.tipo_cliente === 'CONSUMIDOR_BENEFICIARIO'
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700'
+                  : cliente.tipo_cliente === 'EMPRESA_PARCEIRA'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700'
+                    : 'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-900/50 dark:text-gray-300 dark:border-gray-700'
+            }`}>
+              {cliente.tipo_cliente === 'PROPRIETARIO_USINA' 
+                ? 'Proprietário' 
+                : cliente.tipo_cliente === 'CONSUMIDOR_BENEFICIARIO' 
+                  ? 'Beneficiário' 
+                  : cliente.tipo_cliente === 'EMPRESA_PARCEIRA' 
+                    ? 'Parceiro' 
+                    : 'Outro'}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/50">Não definido</span>
+          )}
+        </TableCell>
+        <TableCell className="text-center text-muted-foreground py-3.5 whitespace-nowrap px-6">
            <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
               {cliente.ucsCount}
            </span>
@@ -274,26 +344,29 @@ export default function ClientesList() {
         <div className="p-5 bg-card border border-border/60 rounded-xl shadow-xl flex flex-col sm:flex-row gap-4 items-center sticky top-0 z-20 backdrop-blur-md bg-opacity-80 dark:bg-opacity-70">
           <div className="relative flex-grow w-full sm:max-w-sm md:max-w-md lg:max-w-lg">
             <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground/80" />
-        <Input
+            <Input
               type="search"
               placeholder="Buscar por nome ou email..."
               value={searchTerm}
               onChange={handleSearchChange}
               className="pl-11 pr-4 py-3 text-base border-border/70 focus:border-primary focus:ring-primary focus:ring-offset-0 focus:ring-2 transition-all duration-200 ease-in-out shadow-inner rounded-lg bg-background/50 hover:bg-background/70 focus:bg-background/90"
-        />
-      </div>
+            />
+          </div>
           <div className="w-full sm:w-auto">
             <Select value={tipoClienteFilter || 'todos'} onValueChange={handleTipoClienteChange}>
               <SelectTrigger className="w-full sm:w-[200px] py-3 text-base border-border/70 focus:border-primary focus:ring-primary focus:ring-offset-0 focus:ring-2 transition-all duration-200 ease-in-out shadow-inner rounded-lg bg-background/50 hover:bg-background/70 focus:bg-background/90">
-                <SelectValue placeholder="Tipo de Cliente" />
+                <SelectValue placeholder="Filtrar por..." />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border/80 shadow-xl rounded-lg">
-                <SelectItem value="todos" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Todos os Tipos</SelectItem>
+                <SelectItem value="todos" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Todos os Clientes</SelectItem>
                 <SelectItem value="PF" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Pessoa Física (PF)</SelectItem>
                 <SelectItem value="PJ" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Pessoa Jurídica (PJ)</SelectItem>
+                <SelectItem value="PROPRIETARIO_USINA" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Proprietários de Usina</SelectItem>
+                <SelectItem value="CONSUMIDOR_BENEFICIARIO" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Consumidores Beneficiários</SelectItem>
+                <SelectItem value="EMPRESA_PARCEIRA" className="text-base cursor-pointer hover:bg-muted/50 focus:bg-muted/80 py-2.5">Empresas Parceiras</SelectItem>
               </SelectContent>
             </Select>
-        </div>
+          </div>
         </div>
 
         {/* Tabela de Clientes */}
@@ -306,6 +379,7 @@ export default function ClientesList() {
                   <TableHead className="py-4 px-6 text-left text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Email</TableHead>
                   <TableHead className="py-4 px-6 text-left text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Telefone</TableHead>
                   <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Tipo</TableHead>
+                  <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Papel</TableHead>
                   <TableHead className="py-4 px-6 text-center text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Nº UCs</TableHead>
                   <TableHead className="py-4 pr-6 text-right text-sm font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap sticky right-0 bg-muted/50">Ações</TableHead>
                 </TableRow>

@@ -1,0 +1,120 @@
+Auth state changed: SIGNED_IN
+PlantaSolarDetails.tsx:215 Uncaught TypeError: Cannot read properties of undefined (reading 'toFixed')
+    at PlantaSolarDetails (PlantaSolarDetails.tsx:215:56)
+    at renderWithHooks (chunk-34W25BHL.js?v=8de763ca:11548:26)
+    at updateFunctionComponent (chunk-34W25BHL.js?v=8de763ca:14582:28)
+    at beginWork (chunk-34W25BHL.js?v=8de763ca:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-34W25BHL.js?v=8de763ca:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-34W25BHL.js?v=8de763ca:3699:24)
+    at invokeGuardedCallback (chunk-34W25BHL.js?v=8de763ca:3733:39)
+    at beginWork$1 (chunk-34W25BHL.js?v=8de763ca:19765:15)
+    at performUnitOfWork (chunk-34W25BHL.js?v=8de763ca:19198:20)
+    at workLoopSync (chunk-34W25BHL.js?v=8de763ca:19137:13)
+PlantaSolarDetails @ PlantaSolarDetails.tsx:215
+renderWithHooks @ chunk-34W25BHL.js?v=8de763ca:11548
+updateFunctionComponent @ chunk-34W25BHL.js?v=8de763ca:14582
+beginWork @ chunk-34W25BHL.js?v=8de763ca:15924
+callCallback2 @ chunk-34W25BHL.js?v=8de763ca:3674
+invokeGuardedCallbackDev @ chunk-34W25BHL.js?v=8de763ca:3699
+invokeGuardedCallback @ chunk-34W25BHL.js?v=8de763ca:3733
+beginWork$1 @ chunk-34W25BHL.js?v=8de763ca:19765
+performUnitOfWork @ chunk-34W25BHL.js?v=8de763ca:19198
+workLoopSync @ chunk-34W25BHL.js?v=8de763ca:19137
+renderRootSync @ chunk-34W25BHL.js?v=8de763ca:19116
+performConcurrentWorkOnRoot @ chunk-34W25BHL.js?v=8de763ca:18678
+workLoop @ chunk-34W25BHL.js?v=8de763ca:197
+flushWork @ chunk-34W25BHL.js?v=8de763ca:176
+performWorkUntilDeadline @ chunk-34W25BHL.js?v=8de763ca:384Understand this error
+PlantaSolarDetails.tsx:215 Uncaught TypeError: Cannot read properties of undefined (reading 'toFixed')
+    at PlantaSolarDetails (PlantaSolarDetails.tsx:215:56)
+    at renderWithHooks (chunk-34W25BHL.js?v=8de763ca:11548:26)
+    at updateFunctionComponent (chunk-34W25BHL.js?v=8de763ca:14582:28)
+    at beginWork (chunk-34W25BHL.js?v=8de763ca:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-34W25BHL.js?v=8de763ca:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-34W25BHL.js?v=8de763ca:3699:24)
+    at invokeGuardedCallback (chunk-34W25BHL.js?v=8de763ca:3733:39)
+    at beginWork$1 (chunk-34W25BHL.js?v=8de763ca:19765:15)
+    at performUnitOfWork (chunk-34W25BHL.js?v=8de763ca:19198:20)
+    at workLoopSync (chunk-34W25BHL.js?v=8de763ca:19137:13)
+PlantaSolarDetails @ PlantaSolarDetails.tsx:215
+renderWithHooks @ chunk-34W25BHL.js?v=8de763ca:11548
+updateFunctionComponent @ chunk-34W25BHL.js?v=8de763ca:14582
+beginWork @ chunk-34W25BHL.js?v=8de763ca:15924
+callCallback2 @ chunk-34W25BHL.js?v=8de763ca:3674
+invokeGuardedCallbackDev @ chunk-34W25BHL.js?v=8de763ca:3699
+invokeGuardedCallback @ chunk-34W25BHL.js?v=8de763ca:3733
+beginWork$1 @ chunk-34W25BHL.js?v=8de763ca:19765
+performUnitOfWork @ chunk-34W25BHL.js?v=8de763ca:19198
+workLoopSync @ chunk-34W25BHL.js?v=8de763ca:19137
+renderRootSync @ chunk-34W25BHL.js?v=8de763ca:19116
+recoverFromConcurrentError @ chunk-34W25BHL.js?v=8de763ca:18736
+performConcurrentWorkOnRoot @ chunk-34W25BHL.js?v=8de763ca:18684
+workLoop @ chunk-34W25BHL.js?v=8de763ca:197
+flushWork @ chunk-34W25BHL.js?v=8de763ca:176
+performWorkUntilDeadline @ chunk-34W25BHL.js?v=8de763ca:384Understand this error
+chunk-34W25BHL.js?v=8de763ca:14032 The above error occurred in the <PlantaSolarDetails> component:
+
+    at PlantaSolarDetails (http://localhost:8080/src/pages/plantas_solares/PlantaSolarDetails.tsx?t=1747785025871:33:20)
+    at div
+    at PageTransition (http://localhost:8080/src/App.tsx?t=1747782428085:33:27)
+    at RenderedRoute (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:4089:5)
+    at Outlet (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:4495:26)
+    at main
+    at div
+    at div
+    at AppLayout (http://localhost:8080/src/components/layout/AppLayout.tsx:83:59)
+    at ProtectedRoute (http://localhost:8080/src/components/ProtectedRoute.tsx:25:34)
+    at RenderedRoute (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:4089:5)
+    at Routes (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:4559:5)
+    at AppRoutes
+    at div
+    at Router (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:4502:15)
+    at BrowserRouter (http://localhost:8080/node_modules/.vite/deps/react-router-dom.js?v=8de763ca:5248:5)
+    at Provider (http://localhost:8080/node_modules/.vite/deps/chunk-WD5WCZDE.js?v=8de763ca:38:15)
+    at TooltipProvider (http://localhost:8080/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=8de763ca:64:5)
+    at AuthProvider (http://localhost:8080/src/contexts/AuthContext.tsx:35:32)
+    at ThemeProvider (http://localhost:8080/src/contexts/ThemeContext.tsx:24:33)
+    at QueryClientProvider (http://localhost:8080/node_modules/.vite/deps/@tanstack_react-query.js?v=8de763ca:2881:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-34W25BHL.js?v=8de763ca:14032
+update.callback @ chunk-34W25BHL.js?v=8de763ca:14052
+callCallback @ chunk-34W25BHL.js?v=8de763ca:11248
+commitUpdateQueue @ chunk-34W25BHL.js?v=8de763ca:11265
+commitLayoutEffectOnFiber @ chunk-34W25BHL.js?v=8de763ca:17093
+commitLayoutMountEffects_complete @ chunk-34W25BHL.js?v=8de763ca:17980
+commitLayoutEffects_begin @ chunk-34W25BHL.js?v=8de763ca:17969
+commitLayoutEffects @ chunk-34W25BHL.js?v=8de763ca:17920
+commitRootImpl @ chunk-34W25BHL.js?v=8de763ca:19353
+commitRoot @ chunk-34W25BHL.js?v=8de763ca:19277
+finishConcurrentRender @ chunk-34W25BHL.js?v=8de763ca:18760
+performConcurrentWorkOnRoot @ chunk-34W25BHL.js?v=8de763ca:18718
+workLoop @ chunk-34W25BHL.js?v=8de763ca:197
+flushWork @ chunk-34W25BHL.js?v=8de763ca:176
+performWorkUntilDeadline @ chunk-34W25BHL.js?v=8de763ca:384Understand this error
+chunk-34W25BHL.js?v=8de763ca:19413 Uncaught TypeError: Cannot read properties of undefined (reading 'toFixed')
+    at PlantaSolarDetails (PlantaSolarDetails.tsx:215:56)
+    at renderWithHooks (chunk-34W25BHL.js?v=8de763ca:11548:26)
+    at updateFunctionComponent (chunk-34W25BHL.js?v=8de763ca:14582:28)
+    at beginWork (chunk-34W25BHL.js?v=8de763ca:15924:22)
+    at beginWork$1 (chunk-34W25BHL.js?v=8de763ca:19753:22)
+    at performUnitOfWork (chunk-34W25BHL.js?v=8de763ca:19198:20)
+    at workLoopSync (chunk-34W25BHL.js?v=8de763ca:19137:13)
+    at renderRootSync (chunk-34W25BHL.js?v=8de763ca:19116:15)
+    at recoverFromConcurrentError (chunk-34W25BHL.js?v=8de763ca:18736:28)
+    at performConcurrentWorkOnRoot (chunk-34W25BHL.js?v=8de763ca:18684:30)
+PlantaSolarDetails @ PlantaSolarDetails.tsx:215
+renderWithHooks @ chunk-34W25BHL.js?v=8de763ca:11548
+updateFunctionComponent @ chunk-34W25BHL.js?v=8de763ca:14582
+beginWork @ chunk-34W25BHL.js?v=8de763ca:15924
+beginWork$1 @ chunk-34W25BHL.js?v=8de763ca:19753
+performUnitOfWork @ chunk-34W25BHL.js?v=8de763ca:19198
+workLoopSync @ chunk-34W25BHL.js?v=8de763ca:19137
+renderRootSync @ chunk-34W25BHL.js?v=8de763ca:19116
+recoverFromConcurrentError @ chunk-34W25BHL.js?v=8de763ca:18736
+performConcurrentWorkOnRoot @ chunk-34W25BHL.js?v=8de763ca:18684
+workLoop @ chunk-34W25BHL.js?v=8de763ca:197
+flushWork @ chunk-34W25BHL.js?v=8de763ca:176
+performWorkUntilDeadline @ chunk-34W25BHL.js?v=8de763ca:384Understand this error
